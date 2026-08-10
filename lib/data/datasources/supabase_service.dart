@@ -44,6 +44,8 @@ class SupabaseService {
   // Push record addition/update to Supabase Cloud with guaranteed REST fallback
   Future<void> syncToCloud(String table, Map<String, dynamic> payload) async {
     final onConflict = table == 'users' ? 'username' : 'id';
+    
+    // 1. Try SDK Upsert
     if (_client != null) {
       try {
         await _client!.from(table).upsert(payload, onConflict: onConflict);
@@ -54,17 +56,23 @@ class SupabaseService {
       }
     }
 
-    // Direct HTTP REST Fallback to Supabase Endpoint
+    // 2. Direct HTTP REST Fallback to Supabase Endpoint
     try {
-      final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table');
-      final request = await HttpClient().postUrl(uri);
+      final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?on_conflict=$onConflict');
+      final httpClient = HttpClient();
+      final request = await httpClient.postUrl(uri);
       request.headers.set('apikey', AppConfig.supabaseAnonKey);
       request.headers.set('Authorization', 'Bearer ${AppConfig.supabaseAnonKey}');
       request.headers.set('Content-Type', 'application/json');
-      request.headers.set('Prefer', 'resolution=merge-duplicates');
-      request.write(jsonEncode(payload));
+      request.headers.set('Prefer', 'resolution=merge-duplicates,return=minimal');
+      
+      final bodyBytes = utf8.encode(jsonEncode(payload));
+      request.headers.set('Content-Length', bodyBytes.length.toString());
+      request.add(bodyBytes);
+
       final response = await request.close();
       debugPrint('Cloud HTTP fallback status for $table: ${response.statusCode}');
+      httpClient.close();
     } catch (e) {
       debugPrint('Cloud HTTP fallback notice for $table: $e');
     }
@@ -73,6 +81,7 @@ class SupabaseService {
   // Push record deletion to Supabase Cloud with guaranteed REST fallback
   Future<void> deleteFromCloud(String table, String id) async {
     final col = table == 'users' ? 'username' : 'id';
+    
     if (_client != null) {
       try {
         await _client!.from(table).delete().eq(col, id);
@@ -85,11 +94,14 @@ class SupabaseService {
 
     try {
       final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?$col=eq.$id');
-      final request = await HttpClient().deleteUrl(uri);
+      final httpClient = HttpClient();
+      final request = await httpClient.deleteUrl(uri);
       request.headers.set('apikey', AppConfig.supabaseAnonKey);
       request.headers.set('Authorization', 'Bearer ${AppConfig.supabaseAnonKey}');
+      
       final response = await request.close();
       debugPrint('Cloud HTTP delete status for $table: ${response.statusCode}');
+      httpClient.close();
     } catch (e) {
       debugPrint('Cloud HTTP delete notice for $table: $e');
     }
@@ -105,7 +117,7 @@ class SupabaseService {
         'name': jsonEncode(logs.map((l) => l.toJson()).toList()),
         'role': 'system'
       };
-      await _client!.from('users').upsert(payload, onConflict: 'username');
+      await syncToCloud('users', payload);
     } catch (e) {
       debugPrint('Notice syncing audit logs to cloud: $e');
     }
@@ -176,28 +188,6 @@ class SupabaseService {
       final resUsers = await _client!.from('users').select('*');
       if (resUsers.isNotEmpty) {
         final userList = resUsers as List;
-        Map<String, dynamic>? auditRow;
-        for (var u in userList) {
-          if (u['username'] == 'SYSTEM_AUDIT_TRAIL') {
-            auditRow = Map<String, dynamic>.from(u);
-            break;
-          }
-        }
-
-        if (auditRow != null && auditRow['name'] != null) {
-          try {
-            final rawList = jsonDecode(auditRow['name']);
-            if (rawList is List) {
-              final cloudLogs = rawList
-                  .map((e) => LogModel.fromJson(Map<String, dynamic>.from(e)))
-                  .toList();
-              LocalStore.instance.mergeCloudLogs(cloudLogs);
-            }
-          } catch (e) {
-            debugPrint('Notice parsing audit logs: $e');
-          }
-        }
-
         final filteredUsers = userList
             .where((u) => u['username'] != 'SYSTEM_AUDIT_TRAIL')
             .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))

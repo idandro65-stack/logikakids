@@ -280,7 +280,7 @@ class LocalStore extends ChangeNotifier {
   // --- CHILDREN CRUD ---
   void addChild(String name, String category) {
     final newChild = ChildModel(
-      id: 'child_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'SUB_child_${DateTime.now().millisecondsSinceEpoch}',
       name: name.trim(),
       category: category.toLowerCase(),
       createdAt: DateTime.now().toIso8601String(),

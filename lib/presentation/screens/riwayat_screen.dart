@@ -18,7 +18,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _categoryFilter = 'all';
   String _roomFilter = 'all';
-  String _sortBy = 'newest';
+  String _sortBy = 'date-desc'; // Default: Tanggal Terbaru
 
   Future<void> _confirmDeleteNotulen(NotulenModel n) async {
     final confirm = await showDialog<bool>(
@@ -70,7 +70,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
 
         for (var n in notulens) {
           final childObj = store.children.firstWhere(
-            (c) => c.name == n.childName,
+            (c) => c.name.toLowerCase() == n.childName.toLowerCase(),
             orElse: () => ChildModel(id: '', name: n.childName, category: 'reguler'),
           );
 
@@ -107,23 +107,23 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
 
         var childNames = groupedByChild.keys.toList();
 
-        // Sorting Logic
-        if (_sortBy == 'name-asc') {
-          childNames.sort((a, b) => a.compareTo(b));
-        } else if (_sortBy == 'name-desc') {
-          childNames.sort((a, b) => b.compareTo(a));
-        } else if (_sortBy == 'newest') {
+        // Sorting Logic (Explicit Date & Name Sorting)
+        if (_sortBy == 'date-desc') {
           childNames.sort((a, b) {
             final latestA = groupedByChild[a]!.first.date;
             final latestB = groupedByChild[b]!.first.date;
             return latestB.compareTo(latestA);
           });
-        } else if (_sortBy == 'oldest') {
+        } else if (_sortBy == 'date-asc') {
           childNames.sort((a, b) {
             final latestA = groupedByChild[a]!.first.date;
             final latestB = groupedByChild[b]!.first.date;
             return latestA.compareTo(latestB);
           });
+        } else if (_sortBy == 'name-asc') {
+          childNames.sort((a, b) => a.compareTo(b));
+        } else if (_sortBy == 'name-desc') {
+          childNames.sort((a, b) => b.compareTo(a));
         }
 
         return Scaffold(
@@ -131,7 +131,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // 1. Search Bar + Sort Dropdown
+                // 1. Search Bar + Date/Name Sort Dropdown
                 Row(
                   children: [
                     Expanded(
@@ -139,7 +139,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         controller: _searchController,
                         onChanged: (val) => setState(() {}),
                         decoration: InputDecoration(
-                          hintText: 'Cari nama anak / program / ruangan / catatan...',
+                          hintText: 'Cari nama anak / program / ruangan...',
                           prefixIcon: const Icon(LucideIcons.search),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                           border: OutlineInputBorder(
@@ -154,8 +154,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                       icon: const Icon(LucideIcons.arrowDownUp, size: 18),
                       onChanged: (val) => setState(() => _sortBy = val!),
                       items: const [
-                        DropdownMenuItem(value: 'newest', child: Text('Terbaru', style: TextStyle(fontSize: 11))),
-                        DropdownMenuItem(value: 'oldest', child: Text('Terlama', style: TextStyle(fontSize: 11))),
+                        DropdownMenuItem(value: 'date-desc', child: Text('Tgl Terbaru', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+                        DropdownMenuItem(value: 'date-asc', child: Text('Tgl Terlama', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
                         DropdownMenuItem(value: 'name-asc', child: Text('Nama A-Z', style: TextStyle(fontSize: 11))),
                         DropdownMenuItem(value: 'name-desc', child: Text('Nama Z-A', style: TextStyle(fontSize: 11))),
                       ],
@@ -202,7 +202,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Riwayat Cards List (100% Matching Web Layout!)
+                // Riwayat Cards List (100% Matching Web Layout Screenshot!)
                 Expanded(
                   child: childNames.isEmpty
                       ? const Center(
@@ -219,7 +219,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                             childNotulens.sort((a, b) => b.date.compareTo(a.date));
 
                             final childObj = store.children.firstWhere(
-                              (c) => c.name == childName,
+                              (c) => c.name.toLowerCase() == childName.toLowerCase(),
                               orElse: () => ChildModel(id: '', name: childName, category: 'reguler'),
                             );
 
@@ -234,7 +234,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Child Header Banner
+                                    // Child Header Banner (Matching Web Screenshot 100%)
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
@@ -245,8 +245,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                             Text(
                                               childName,
                                               style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 16,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 17,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
@@ -465,7 +465,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   List<int> belumNumbers = [];
 
                   for (int i = 1; i <= totalTarget; i++) {
-                    if (achievedIndices.contains(i - 1) || achievedIndices.contains(i)) {
+                    // 0-based index check (i - 1) matching web app 100%!
+                    if (achievedIndices.contains(i - 1)) {
                       tercapaiNumbers.add(i);
                     } else {
                       belumNumbers.add(i);

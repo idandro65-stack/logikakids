@@ -234,7 +234,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                               .toList();
 
                           final newProg = ProgramModel(
-                            id: 'prog_${DateTime.now().millisecondsSinceEpoch}',
+                            id: 'SUB_prog_${DateTime.now().millisecondsSinceEpoch}',
                             room: selectedRoom,
                             programName: nameCtrl.text.trim(),
                             indicators: cleanInds.isEmpty ? ['Latihan Dasar'] : cleanInds,

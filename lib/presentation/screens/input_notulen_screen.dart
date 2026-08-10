@@ -127,7 +127,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     final isEdit = widget.editNotulen != null;
 
     final notulenObj = NotulenModel(
-      id: isEdit ? widget.editNotulen!.id : 'notulen_${DateTime.now().millisecondsSinceEpoch}',
+      id: isEdit ? widget.editNotulen!.id : 'SUB_notulen_${DateTime.now().millisecondsSinceEpoch}',
       date: _dateController.text,
       childName: _selectedChild!,
       notulen: _selectedBunda!,
