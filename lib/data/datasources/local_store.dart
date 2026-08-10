@@ -160,6 +160,21 @@ class LocalStore extends ChangeNotifier {
     _persist();
   }
 
+  String resolveProgramName(String idOrName) {
+    if (idOrName.trim().isEmpty) return '';
+    final match = _programs.firstWhere(
+      (p) => p.id == idOrName || p.programName == idOrName,
+      orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10),
+    );
+    if (match.programName.isNotEmpty) {
+      return match.programName;
+    }
+    if (idOrName.startsWith('SUB_')) {
+      return 'Program #${idOrName.substring(4, 10).toUpperCase()}';
+    }
+    return idOrName;
+  }
+
   bool updatePassword(String username, String newPassword) {
     final idx = _users.indexWhere((u) => u.username == username);
     if (idx != -1) {

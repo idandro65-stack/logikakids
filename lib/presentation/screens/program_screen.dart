@@ -21,6 +21,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -32,7 +33,9 @@ class _ProgramScreenState extends State<ProgramScreen> {
                 left: 20,
                 right: 20,
                 top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                    MediaQuery.of(ctx).padding.bottom +
+                    20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -48,7 +51,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
-                    value: selectedRoom,
+                    initialValue: selectedRoom,
                     decoration: const InputDecoration(
                       labelText: 'Ruang Terapi',
                       border: OutlineInputBorder(),
@@ -126,6 +129,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -137,7 +141,9 @@ class _ProgramScreenState extends State<ProgramScreen> {
                 left: 20,
                 right: 20,
                 top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                    MediaQuery.of(ctx).padding.bottom +
+                    20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -153,7 +159,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
-                    value: selectedRoom,
+                    initialValue: selectedRoom,
                     decoration: const InputDecoration(
                       labelText: 'Ruang Terapi',
                       border: OutlineInputBorder(),

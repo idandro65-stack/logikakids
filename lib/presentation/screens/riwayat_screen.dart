@@ -19,12 +19,20 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                MediaQuery.of(ctx).padding.bottom +
+                20,
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -95,8 +103,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                 if (n.programsSelected.isEmpty)
                   const Text('Tidak ada rincian program spesifik', style: TextStyle(fontSize: 12, color: Colors.grey))
                 else
-                  ...n.programsSelected.map((prog) {
-                    final statusVal = n.status[prog] ?? 'S';
+                  ...n.programsSelected.map((progId) {
+                    final cleanProgName = LocalStore.instance.resolveProgramName(progId);
+                    final statusVal = n.status[progId] ?? n.status[cleanProgName] ?? 'S';
                     final statusLabel = statusVal == 'S'
                         ? 'Sudah (S)'
                         : statusVal == 'BS'
@@ -120,7 +129,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                prog,
+                                cleanProgName,
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                             ),
@@ -140,7 +149,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   }),
 
                 const SizedBox(height: 16),
-                // Actions PDF & Share
+                // Actions PDF & Share & Delete
                 Row(
                   children: [
                     Expanded(
@@ -153,10 +162,10 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                           foregroundColor: Colors.white,
                         ),
                         icon: const Icon(LucideIcons.fileText, size: 16),
-                        label: const Text('Cetak Raport PDF', style: TextStyle(fontSize: 12)),
+                        label: const Text('Raport PDF', style: TextStyle(fontSize: 12)),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
@@ -168,6 +177,17 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         icon: const Icon(LucideIcons.send, size: 16),
                         label: const Text('Kirim WA', style: TextStyle(fontSize: 12)),
                       ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      icon: const Icon(LucideIcons.trash2, color: Colors.red),
+                      onPressed: () {
+                        LocalStore.instance.deleteNotulen(n.id);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Notulen sesi berhasil dihapus')),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -192,7 +212,10 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         for (var n in notulens) {
           if (_filterController.text.isNotEmpty) {
             final filter = _filterController.text.toLowerCase();
-            final matchProg = n.programsSelected.any((p) => p.toLowerCase().contains(filter));
+            final matchProg = n.programsSelected.any((p) {
+              final clean = store.resolveProgramName(p);
+              return clean.toLowerCase().contains(filter);
+            });
             final matchChild = n.childName.toLowerCase().contains(filter);
             if (!matchProg && !matchChild) continue;
           }

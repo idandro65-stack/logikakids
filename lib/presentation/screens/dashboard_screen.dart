@@ -9,20 +9,45 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   void _showRoomDetailModal(BuildContext context, String roomName, LocalStore store) {
-    final roomNotulens = store.notulens.where((n) {
-      final rooms = n.room.split(';');
-      return rooms.any((r) => r.trim() == roomName);
+    final now = DateTime.now();
+    final currentMonthStr = "${now.year}-${now.month.toString().padLeft(2, '0')}";
+
+    final monthNotulens = store.notulens.where((n) {
+      return n.date.startsWith(currentMonthStr);
     }).toList();
+
+    Map<String, int> childSessionCounts = {};
+    for (var n in monthNotulens) {
+      final rooms = n.room.split(';');
+      final matchesRoom = rooms.any((r) => r.trim() == roomName);
+      if (matchesRoom) {
+        final cName = n.childName.isEmpty ? 'Lainnya' : n.childName;
+        childSessionCounts[cName] = (childSessionCounts[cName] ?? 0) + 1;
+      }
+    }
+
+    final sortedChildren = childSessionCounts.keys.toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    final totalSesi = childSessionCounts.values.fold(0, (a, b) => a + b);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                MediaQuery.of(ctx).padding.bottom +
+                20,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,7 +70,7 @@ class DashboardScreen extends StatelessWidget {
                     ],
                   ),
                   Chip(
-                    label: Text('${roomNotulens.length} Sesi'),
+                    label: Text('$totalSesi Sesi Bulan Ini'),
                     backgroundColor: const Color(0xFFFFF1F2),
                     labelStyle: const TextStyle(
                       fontSize: 11,
@@ -57,38 +82,43 @@ class DashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 350,
-                child: roomNotulens.isEmpty
+                height: 380,
+                child: sortedChildren.isEmpty
                     ? const Center(
                         child: Text(
-                          'Belum ada notulen sesi di ruangan ini',
+                          'Belum ada sesi notulen tercatat bulan ini di ruangan ini',
                           style: TextStyle(color: Colors.grey),
                         ),
                       )
                     : ListView.builder(
-                        itemCount: roomNotulens.length,
+                        itemCount: sortedChildren.length,
                         itemBuilder: (ctx, idx) {
-                          final n = roomNotulens[idx];
+                          final cName = sortedChildren[idx];
+                          final count = childSessionCounts[cName] ?? 0;
                           return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
+                            margin: const EdgeInsets.only(bottom: 6),
                             child: ListTile(
                               leading: const CircleAvatar(
                                 backgroundColor: Color(0xFFFFF1F2),
-                                child: Icon(LucideIcons.user, color: Color(0xFFF43F5E)),
+                                child: Icon(LucideIcons.user, color: Color(0xFFF43F5E), size: 18),
                               ),
                               title: Text(
-                                n.childName,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                cName,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                               subtitle: Text(
-                                'Terapis: Bunda ${n.notulen} | Tanggal: ${n.date}',
-                                style: const TextStyle(fontSize: 11),
+                                '$count Sesi Terapi Bulan Ini',
+                                style: const TextStyle(fontSize: 11, color: Colors.grey),
                               ),
-                              trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                _showNotulenDetailModal(context, n);
-                              },
+                              trailing: Chip(
+                                label: Text('${count}x sesi'),
+                                backgroundColor: Colors.teal.shade50,
+                                labelStyle: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.teal.shade800,
+                                ),
+                              ),
                             ),
                           );
                         },
@@ -105,70 +135,88 @@ class DashboardScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Notulen: ${n.childName}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFBE123C),
-                    ),
-                  ),
-                  Text(n.date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Ruang: ${n.room} | Terapis: Bunda ${n.notulen}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-              const Divider(height: 20),
-              if (n.notes.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF1F2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(LucideIcons.pin, size: 14, color: Color(0xFFBE123C)),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Catatan: "${n.notes}"',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFFBE123C), fontWeight: FontWeight.bold),
-                        ),
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                MediaQuery.of(ctx).padding.bottom +
+                20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Notulen: ${n.childName}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFBE123C),
                       ),
-                    ],
-                  ),
+                    ),
+                    Text(n.date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
                 ),
-              const Text('Program Terapi:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 6),
-              ...n.programsSelected.map((p) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4.0),
+                const SizedBox(height: 6),
+                Text(
+                  'Ruang: ${n.room} | Terapis: Bunda ${n.notulen}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const Divider(height: 20),
+                if (n.notes.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1F2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Row(
                       children: [
-                        const Icon(LucideIcons.checkCircle2, size: 14, color: Colors.green),
+                        const Icon(LucideIcons.pin, size: 14, color: Color(0xFFBE123C)),
                         const SizedBox(width: 6),
-                        Text(p, style: const TextStyle(fontSize: 12)),
+                        Expanded(
+                          child: Text(
+                            'Catatan: "${n.notes}"',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFFBE123C), fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ],
                     ),
-                  )),
-            ],
+                  ),
+                const Text('Program Terapi:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                ...n.programsSelected.map((progId) {
+                  final cleanName = LocalStore.instance.resolveProgramName(progId);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6.0),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.checkCircle2, size: 16, color: Colors.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            cleanName,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
         );
       },
@@ -357,13 +405,16 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildRoomSummaryCard(BuildContext context, LocalStore store) {
-    final notulens = store.notulens;
+    final now = DateTime.now();
+    final currentMonthStr = "${now.year}-${now.month.toString().padLeft(2, '0')}";
+    final monthNotulens = store.notulens.where((n) => n.date.startsWith(currentMonthStr)).toList();
+
     Map<String, int> roomCounts = {};
     for (var r in AppConfig.rooms) {
       roomCounts[r] = 0;
     }
 
-    for (var n in notulens) {
+    for (var n in monthNotulens) {
       final rooms = n.room.split(';');
       for (var r in rooms) {
         final clean = r.trim();

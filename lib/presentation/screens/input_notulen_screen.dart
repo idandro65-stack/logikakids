@@ -4,7 +4,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/notulen_model.dart';
-import '../../data/models/program_model.dart';
 
 class InputNotulenScreen extends StatefulWidget {
   const InputNotulenScreen({super.key});
@@ -18,7 +17,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       text: DateFormat('yyyy-MM-dd').format(DateTime.now()));
   String? _selectedChild;
   String? _selectedBunda;
-  String _selectedRoom = AppConfig.rooms[0];
+  final Set<String> _selectedRooms = {AppConfig.rooms[0]};
   final _notesController = TextEditingController();
 
   final List<String> _selectedPrograms = [];
@@ -47,12 +46,19 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       return;
     }
 
+    if (_selectedRooms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harap pilih minimal 1 ruang terapi')),
+      );
+      return;
+    }
+
     final newNotulen = NotulenModel(
       id: 'notulen_${DateTime.now().millisecondsSinceEpoch}',
       date: _dateController.text,
       childName: _selectedChild!,
       notulen: _selectedBunda!,
-      room: _selectedRoom,
+      room: _selectedRooms.join('; '),
       programsSelected: _selectedPrograms,
       pointsAchieved: _pointsMap,
       status: _statusMap,
@@ -72,9 +78,9 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     final children = store.children;
     final bundas = store.bundas;
 
-    // Filter available programs in current room
+    // Filter available programs in ANY of the selected rooms
     final availablePrograms = store.programs
-        .where((p) => p.room == _selectedRoom)
+        .where((p) => _selectedRooms.contains(p.room))
         .toList();
 
     return Scaffold(
@@ -129,32 +135,36 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 3. Room Selector Chips
+            // 3. Room Selector Chips (Multi-Select Enabled!)
             const Text(
-              'Pilih Ruang Terapi:',
+              'Pilih Ruang Terapi (Bisa Lebih Dari 1):',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
               children: AppConfig.rooms.map((room) {
-                final isSelected = _selectedRoom == room;
-                return ChoiceChip(
+                final isSelected = _selectedRooms.contains(room);
+                return FilterChip(
                   label: Text(room),
                   selected: isSelected,
                   selectedColor: const Color(0xFFF43F5E),
+                  checkmarkColor: Colors.white,
                   labelStyle: TextStyle(
                     color: isSelected ? Colors.white : Colors.black87,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
                   onSelected: (selected) {
-                    if (selected) {
-                      setState(() {
-                        _selectedRoom = room;
-                        _selectedPrograms.clear();
-                      });
-                    }
+                    setState(() {
+                      if (selected) {
+                        _selectedRooms.add(room);
+                      } else {
+                        if (_selectedRooms.length > 1) {
+                          _selectedRooms.remove(room);
+                        }
+                      }
+                    });
                   },
                 );
               }).toList(),
@@ -170,7 +180,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             if (availablePrograms.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(8.0),
-                child: Text('Belum ada program di ruangan ini', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                child: Text('Pilih ruangan terapi untuk menampilkan program...', style: TextStyle(fontSize: 12, color: Colors.grey)),
               )
             else
               ...availablePrograms.map((prog) {
@@ -184,7 +194,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                           prog.programName,
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         ),
-                        subtitle: Text('${prog.indicators.length} Indikator Point', style: const TextStyle(fontSize: 11)),
+                        subtitle: Text('${prog.room} | ${prog.indicators.length} Indikator Point', style: const TextStyle(fontSize: 11)),
                         value: isChecked,
                         activeColor: const Color(0xFFF43F5E),
                         onChanged: (val) {
