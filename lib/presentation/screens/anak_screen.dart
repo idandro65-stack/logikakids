@@ -15,6 +15,43 @@ class _AnakScreenState extends State<AnakScreen> {
   String _sortBy = 'name-asc';
   String _searchQuery = '';
 
+  Future<void> _confirmDeleteChild(ChildModel child) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Konfirmasi Hapus Anak', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Yakin ingin menghapus data anak \'${child.name}\'? Seluruh data notulen anak ini juga akan ikut terpengaruh.', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus Data Anak', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      LocalStore.instance.deleteChild(child.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Data anak \'${child.name}\' berhasil dihapus')),
+        );
+      }
+    }
+  }
+
   void _showAddChildModal() {
     final nameController = TextEditingController();
     String category = 'reguler';
@@ -345,9 +382,7 @@ class _AnakScreenState extends State<AnakScreen> {
                                     ),
                                     IconButton(
                                       icon: const Icon(LucideIcons.trash2, size: 18, color: Colors.red),
-                                      onPressed: () {
-                                        LocalStore.instance.deleteChild(child.id);
-                                      },
+                                      onPressed: () => _confirmDeleteChild(child),
                                     ),
                                   ],
                                 ),

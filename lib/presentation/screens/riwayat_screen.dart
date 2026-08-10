@@ -18,6 +18,44 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _categoryFilter = 'all';
   String _roomFilter = 'all';
+  String _sortBy = 'newest';
+
+  Future<void> _confirmDeleteNotulen(NotulenModel n) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Konfirmasi Hapus Sesi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Apakah Anda yakin ingin menghapus notulen sesi ${n.childName} tanggal ${n.date}? Tindakan ini tidak dapat dibatalkan.', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus Sesi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      LocalStore.instance.deleteNotulen(n.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Notulen sesi ${n.childName} berhasil dihapus')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,25 +106,61 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         }
 
         var childNames = groupedByChild.keys.toList();
-        childNames.sort((a, b) => a.compareTo(b));
+
+        // Sorting Logic
+        if (_sortBy == 'name-asc') {
+          childNames.sort((a, b) => a.compareTo(b));
+        } else if (_sortBy == 'name-desc') {
+          childNames.sort((a, b) => b.compareTo(a));
+        } else if (_sortBy == 'newest') {
+          childNames.sort((a, b) {
+            final latestA = groupedByChild[a]!.first.date;
+            final latestB = groupedByChild[b]!.first.date;
+            return latestB.compareTo(latestA);
+          });
+        } else if (_sortBy == 'oldest') {
+          childNames.sort((a, b) {
+            final latestA = groupedByChild[a]!.first.date;
+            final latestB = groupedByChild[b]!.first.date;
+            return latestA.compareTo(latestB);
+          });
+        }
 
         return Scaffold(
           body: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // 1. Search Bar
-                TextField(
-                  controller: _searchController,
-                  onChanged: (val) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Cari nama anak / program / ruangan / catatan...',
-                    prefixIcon: const Icon(LucideIcons.search),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                // 1. Search Bar + Sort Dropdown
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (val) => setState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Cari nama anak / program / ruangan / catatan...',
+                          prefixIcon: const Icon(LucideIcons.search),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    DropdownButton<String>(
+                      value: _sortBy,
+                      icon: const Icon(LucideIcons.arrowDownUp, size: 18),
+                      onChanged: (val) => setState(() => _sortBy = val!),
+                      items: const [
+                        DropdownMenuItem(value: 'newest', child: Text('Terbaru', style: TextStyle(fontSize: 11))),
+                        DropdownMenuItem(value: 'oldest', child: Text('Terlama', style: TextStyle(fontSize: 11))),
+                        DropdownMenuItem(value: 'name-asc', child: Text('Nama A-Z', style: TextStyle(fontSize: 11))),
+                        DropdownMenuItem(value: 'name-desc', child: Text('Nama Z-A', style: TextStyle(fontSize: 11))),
+                      ],
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
 
@@ -112,7 +186,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     Expanded(
                       flex: 2,
                       child: DropdownButtonFormField<String>(
-                        value: _roomFilter,
+                        initialValue: _roomFilter,
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                           border: OutlineInputBorder(),
@@ -300,12 +374,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     ),
                     const SizedBox(width: 4),
                     ElevatedButton.icon(
-                      onPressed: () {
-                        store.deleteNotulen(n.id);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Notulen sesi berhasil dihapus')),
-                        );
-                      },
+                      onPressed: () => _confirmDeleteNotulen(n),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
@@ -396,7 +465,6 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   List<int> belumNumbers = [];
 
                   for (int i = 1; i <= totalTarget; i++) {
-                    // Check if 0-based i-1 or 1-based i is in achievedIndices
                     if (achievedIndices.contains(i - 1) || achievedIndices.contains(i)) {
                       tercapaiNumbers.add(i);
                     } else {

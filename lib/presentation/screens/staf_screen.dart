@@ -11,6 +11,43 @@ class StafScreen extends StatefulWidget {
 }
 
 class _StafScreenState extends State<StafScreen> {
+  Future<void> _confirmDeleteStaff(UserModel user) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Konfirmasi Hapus Akun', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Yakin ingin menghapus akun staf \'${user.name}\' (${user.username})? Akun ini tidak dapat mengakses aplikasi lagi.', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus Akun', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      LocalStore.instance.deleteUser(user.username);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Akun staf \'${user.name}\' berhasil dihapus')),
+        );
+      }
+    }
+  }
+
   void _showAddStaffModal(BuildContext context) {
     final nameCtrl = TextEditingController();
     final userCtrl = TextEditingController();
@@ -386,7 +423,7 @@ class _StafScreenState extends State<StafScreen> {
                       if (u.username != 'admin')
                         IconButton(
                           icon: const Icon(LucideIcons.trash2, size: 18, color: Colors.red),
-                          onPressed: () => LocalStore.instance.deleteUser(u.username),
+                          onPressed: () => _confirmDeleteStaff(u),
                         ),
                     ],
                   ),

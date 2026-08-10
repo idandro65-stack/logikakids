@@ -122,7 +122,7 @@ class SupabaseService {
         final list = (resChildren as List)
             .map((e) => ChildModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
-        LocalStore.instance.saveChildren(list);
+        LocalStore.instance.mergeCloudChildren(list);
         debugPrint('Fetched ${list.length} children from Supabase Cloud');
       }
     } catch (e) {
@@ -136,7 +136,7 @@ class SupabaseService {
         final list = (resNotulens as List)
             .map((e) => NotulenModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
-        LocalStore.instance.saveNotulens(list);
+        LocalStore.instance.mergeCloudNotulens(list);
         debugPrint('Fetched ${list.length} notulens from Supabase Cloud');
       }
     } catch (e) {
@@ -150,7 +150,7 @@ class SupabaseService {
         final list = (resPrograms as List)
             .map((e) => ProgramModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
-        LocalStore.instance.savePrograms(list);
+        LocalStore.instance.mergeCloudPrograms(list);
         debugPrint('Fetched ${list.length} programs from Supabase Cloud');
       }
     } catch (e) {
@@ -164,7 +164,7 @@ class SupabaseService {
         final list = (resBundas as List)
             .map((e) => BundaModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
-        LocalStore.instance.saveBundas(list);
+        LocalStore.instance.mergeCloudBundas(list);
         debugPrint('Fetched ${list.length} bundas from Supabase Cloud');
       }
     } catch (e) {
@@ -202,7 +202,7 @@ class SupabaseService {
             .where((u) => u['username'] != 'SYSTEM_AUDIT_TRAIL')
             .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
-        LocalStore.instance.saveUsers(filteredUsers);
+        LocalStore.instance.mergeCloudUsers(filteredUsers);
         debugPrint('Fetched ${filteredUsers.length} users from Supabase Cloud');
       }
     } catch (e) {

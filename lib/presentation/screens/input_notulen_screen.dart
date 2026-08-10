@@ -17,6 +17,7 @@ class InputNotulenScreen extends StatefulWidget {
 class _InputNotulenScreenState extends State<InputNotulenScreen> {
   late TextEditingController _dateController;
   final TextEditingController _childSearchController = TextEditingController();
+  final TextEditingController _programSearchController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
   String? _selectedChild;
@@ -64,6 +65,49 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     }
   }
 
+  Future<void> _confirmDeleteRoom(String roomName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Hapus Ruang Terapi?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Yakin ingin menghapus ruang terapi \'$roomName\'?', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus Ruangan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      LocalStore.instance.deleteRoom(roomName);
+      setState(() {
+        _selectedRooms.remove(roomName);
+        if (_selectedRooms.isEmpty && LocalStore.instance.allRooms.isNotEmpty) {
+          _selectedRooms.add(LocalStore.instance.allRooms[0]);
+        }
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ruang terapi \'$roomName\' telah dihapus')),
+        );
+      }
+    }
+  }
+
   void _saveNotulen() {
     if (_selectedChild == null || _selectedBunda == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -97,7 +141,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     if (isEdit) {
       store.updateNotulen(notulenObj);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notulen sesi berhasil diperbarui!')),
+        const SnackBar(content: Text('Notulen sesi berhasil diperbarui & disimpan!')),
       );
     } else {
       store.addNotulen(notulenObj);
@@ -131,9 +175,17 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
         : <String>{};
 
     // Available Programs for Selected Rooms
-    final availablePrograms = store.programs
+    var availablePrograms = store.programs
         .where((p) => _selectedRooms.contains(p.room))
         .toList();
+
+    // Filter Programs by Search Bar
+    if (_programSearchController.text.isNotEmpty) {
+      final q = _programSearchController.text.toLowerCase();
+      availablePrograms = availablePrograms
+          .where((p) => p.programName.toLowerCase().contains(q) || p.room.toLowerCase().contains(q))
+          .toList();
+    }
 
     final isEdit = widget.editNotulen != null;
 
@@ -206,52 +258,76 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 3. Multi-Select Room Selector Chips
-            const Text(
-              'Pilih Ruang Terapi (Bisa Lebih Dari 1):',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            // 3. Multi-Select Room Selector Chips (Hold/Long-Press to Delete!)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text(
+                  'Pilih Ruang Terapi (Bisa Lebih Dari 1):',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                Text(
+                  'Tahan tombol untuk hapus',
+                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
             ),
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
               children: store.allRooms.map((room) {
                 final isSelected = _selectedRooms.contains(room);
-                return FilterChip(
-                  label: Text(room),
-                  selected: isSelected,
-                  selectedColor: const Color(0xFFF43F5E),
-                  checkmarkColor: Colors.white,
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black87,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedRooms.add(room);
-                      } else {
-                        if (_selectedRooms.length > 1) {
-                          _selectedRooms.remove(room);
+                return InkWell(
+                  onLongPress: () => _confirmDeleteRoom(room),
+                  child: FilterChip(
+                    label: Text(room),
+                    selected: isSelected,
+                    selectedColor: const Color(0xFFF43F5E),
+                    checkmarkColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.white : Colors.black87,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedRooms.add(room);
+                        } else {
+                          if (_selectedRooms.length > 1) {
+                            _selectedRooms.remove(room);
+                          }
                         }
-                      }
-                    });
-                  },
+                      });
+                    },
+                  ),
                 );
               }).toList(),
             ),
             const SizedBox(height: 16),
 
-            // 4. Multi-Select Programs
+            // 4. Search Bar for Programs & Multi-Select Program Checkboxes
             const Text(
               'Pilih Program Terapi (Dapat Dicentang Banyak):',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
             const SizedBox(height: 6),
+            TextField(
+              controller: _programSearchController,
+              onChanged: (val) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Cari nama program terapi...',
+                prefixIcon: const Icon(LucideIcons.search, size: 18),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(height: 10),
+
             if (availablePrograms.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(8.0),
-                child: Text('Pilih ruangan terapi untuk menampilkan program...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                child: Text('Program tidak ditemukan atau pilih ruangan di atas...', style: TextStyle(fontSize: 12, color: Colors.grey)),
               )
             else
               ...availablePrograms.map((prog) {
@@ -266,13 +342,15 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                       CheckboxListTile(
                         title: Row(
                           children: [
-                            Text(
-                              prog.programName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                decoration: isCompleted ? TextDecoration.lineThrough : null,
-                                color: isCompleted ? Colors.grey : Colors.black87,
+                            Expanded(
+                              child: Text(
+                                prog.programName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  decoration: isCompleted ? TextDecoration.lineThrough : null,
+                                  color: isCompleted ? Colors.grey : Colors.black87,
+                                ),
                               ),
                             ),
                             if (isCompleted) ...[
@@ -308,7 +386,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                               },
                       ),
 
-                      // Checkpoint Indicators List if Program Selected (WITH LOCKED INDICATORS FOR PAST ACHIEVED!)
+                      // Checkpoint Indicators List if Program Selected
                       if (isChecked) ...[
                         const Divider(height: 1),
                         _buildIndicatorChecklist(prog, pastAchievedPointsMap),
@@ -458,7 +536,6 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                     _pointsMap[progKey]!.remove(i);
                   }
 
-                  // Auto calculate Status
                   final totalNow = _pointsMap[progKey]!.length + pastAchieved.length;
                   _statusMap[progKey] = (totalNow >= targetPoints) ? 'S' : 'BS';
                 });

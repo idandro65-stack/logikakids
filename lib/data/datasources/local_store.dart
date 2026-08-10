@@ -427,29 +427,66 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.syncLogsToCloud(_logs);
   }
 
-  // --- CLOUD SYNC SETTERS ---
-  void saveChildren(List<ChildModel> list) {
-    _children = list;
+  // --- SMART MERGE CLOUD DATA (NEVER WIPES LOCAL ITEMS!) ---
+  void mergeCloudChildren(List<ChildModel> cloudList) {
+    final Map<String, ChildModel> map = {};
+    for (var c in cloudList) {
+      if (c.id.isNotEmpty) map[c.id] = c;
+    }
+    for (var c in _children) {
+      if (c.id.isNotEmpty) map[c.id] = c;
+    }
+    _children = map.values.toList();
+    _children.sort((a, b) => a.name.compareTo(b.name));
     _persist();
   }
 
-  void saveNotulens(List<NotulenModel> list) {
-    _notulens = list;
+  void mergeCloudNotulens(List<NotulenModel> cloudList) {
+    final Map<String, NotulenModel> map = {};
+    for (var n in cloudList) {
+      if (n.id.isNotEmpty) map[n.id] = n;
+    }
+    for (var n in _notulens) {
+      if (n.id.isNotEmpty) map[n.id] = n;
+    }
+    _notulens = map.values.toList();
+    _notulens.sort((a, b) => b.date.compareTo(a.date));
     _persist();
   }
 
-  void savePrograms(List<ProgramModel> list) {
-    _programs = list;
+  void mergeCloudPrograms(List<ProgramModel> cloudList) {
+    final Map<String, ProgramModel> map = {};
+    for (var p in cloudList) {
+      if (p.id.isNotEmpty) map[p.id] = p;
+    }
+    for (var p in _programs) {
+      if (p.id.isNotEmpty) map[p.id] = p;
+    }
+    _programs = map.values.toList();
     _persist();
   }
 
-  void saveBundas(List<BundaModel> list) {
-    _bundas = list;
+  void mergeCloudBundas(List<BundaModel> cloudList) {
+    final Map<String, BundaModel> map = {};
+    for (var b in cloudList) {
+      if (b.id.isNotEmpty) map[b.id] = b;
+    }
+    for (var b in _bundas) {
+      if (b.id.isNotEmpty) map[b.id] = b;
+    }
+    _bundas = map.values.toList();
     _persist();
   }
 
-  void saveUsers(List<UserModel> list) {
-    _users = list;
+  void mergeCloudUsers(List<UserModel> cloudList) {
+    final Map<String, UserModel> map = {};
+    for (var u in cloudList) {
+      if (u.username.isNotEmpty) map[u.username] = u;
+    }
+    for (var u in _users) {
+      if (u.username.isNotEmpty) map[u.username] = u;
+    }
+    _users = map.values.toList();
     _persist();
   }
 

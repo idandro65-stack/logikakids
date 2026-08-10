@@ -11,6 +11,80 @@ class ProgramScreen extends StatefulWidget {
 }
 
 class _ProgramScreenState extends State<ProgramScreen> {
+  Future<void> _confirmDeleteProgram(ProgramModel prog) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Konfirmasi Hapus Program', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Yakin ingin menghapus program terapi \'${prog.programName}\' dari ruang ${prog.room}?', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus Program', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      LocalStore.instance.deleteProgram(prog.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Program terapi \'${prog.programName}\' berhasil dihapus')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteRoom(String roomName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Hapus Ruang Terapi?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Apakah Anda yakin ingin menghapus ruang terapi \'$roomName\'?', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus Ruangan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      LocalStore.instance.deleteRoom(roomName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ruang terapi \'$roomName\' telah dihapus')),
+        );
+      }
+    }
+  }
+
   void _showAddRoomModal(BuildContext context, LocalStore store) {
     final roomCtrl = TextEditingController();
 
@@ -341,57 +415,60 @@ class _ProgramScreenState extends State<ProgramScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: ExpansionTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Color(0xFFFFF1F2),
-                    child: Icon(LucideIcons.clipboardList, color: Color(0xFFF43F5E)),
-                  ),
-                  title: Text(
-                    roomName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                child: InkWell(
+                  onLongPress: () => _confirmDeleteRoom(roomName),
+                  child: ExpansionTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0xFFFFF1F2),
+                      child: Icon(LucideIcons.clipboardList, color: Color(0xFFF43F5E)),
                     ),
+                    title: Text(
+                      roomName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${roomProgs.length} Program Terapi (Tahan untuk hapus)',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    children: roomProgs.isEmpty
+                        ? const [
+                            Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: Text('Belum ada program untuk ruangan ini',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            )
+                          ]
+                        : roomProgs.map((prog) {
+                            return ListTile(
+                              title: Text(
+                                prog.programName,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                '${prog.indicators.length} Indikator Point Pencapaian',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              trailing: isAdmin
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(LucideIcons.edit2, size: 16, color: Colors.blue),
+                                          onPressed: () => _showEditProgramModal(context, prog, store),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.red),
+                                          onPressed: () => _confirmDeleteProgram(prog),
+                                        ),
+                                      ],
+                                    )
+                                  : null,
+                            );
+                          }).toList(),
                   ),
-                  subtitle: Text(
-                    '${roomProgs.length} Program Terapi',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  children: roomProgs.isEmpty
-                      ? const [
-                          Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: Text('Belum ada program untuk ruangan ini',
-                                style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          )
-                        ]
-                      : roomProgs.map((prog) {
-                          return ListTile(
-                            title: Text(
-                              prog.programName,
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                              '${prog.indicators.length} Indikator Point Pencapaian',
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            trailing: isAdmin
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(LucideIcons.edit2, size: 16, color: Colors.blue),
-                                        onPressed: () => _showEditProgramModal(context, prog, store),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.red),
-                                        onPressed: () => LocalStore.instance.deleteProgram(prog.id),
-                                      ),
-                                    ],
-                                  )
-                                : null,
-                          );
-                        }).toList(),
                 ),
               );
             },
