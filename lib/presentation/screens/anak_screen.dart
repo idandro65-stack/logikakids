@@ -112,6 +112,104 @@ class _AnakScreenState extends State<AnakScreen> {
     );
   }
 
+  void _showEditChildModal(ChildModel child) {
+    final nameController = TextEditingController(text: child.name);
+    String category = child.category;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Edit Data Anak',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFBE123C),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Lengkap Anak',
+                      prefixIcon: Icon(LucideIcons.user),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Reguler', style: TextStyle(fontSize: 12)),
+                          value: 'reguler',
+                          groupValue: category,
+                          onChanged: (val) => setModalState(() => category = val!),
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Intensif', style: TextStyle(fontSize: 12)),
+                          value: 'intensif',
+                          groupValue: category,
+                          onChanged: (val) => setModalState(() => category = val!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (nameController.text.trim().isNotEmpty) {
+                          LocalStore.instance.updateChild(
+                            child.id,
+                            nameController.text.trim(),
+                            category,
+                          );
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Berhasil memperbarui anak ${nameController.text.trim()}'),
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF43F5E),
+                      ),
+                      icon: const Icon(LucideIcons.save, color: Colors.white),
+                      label: const Text('Simpan Perubahan', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -232,11 +330,20 @@ class _AnakScreenState extends State<AnakScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                trailing: IconButton(
-                                  icon: const Icon(LucideIcons.trash2, color: Colors.red),
-                                  onPressed: () {
-                                    LocalStore.instance.deleteChild(child.id);
-                                  },
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(LucideIcons.edit2, size: 18, color: Colors.blue),
+                                      onPressed: () => _showEditChildModal(child),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(LucideIcons.trash2, size: 18, color: Colors.red),
+                                      onPressed: () {
+                                        LocalStore.instance.deleteChild(child.id);
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                             );

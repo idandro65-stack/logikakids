@@ -27,8 +27,8 @@ class SupabaseService {
       _client = Supabase.instance.client;
       debugPrint('Supabase Cloud SDK initialized successfully.');
 
-      // Immediate fetch on init
-      await fetchCloudData();
+      // NON-BLOCKING background fetch so app opens instantly with 0ms delay!
+      unawaited(fetchCloudData());
 
       // Periodic cloud fetch every 10 seconds
       _autoSyncTimer?.cancel();

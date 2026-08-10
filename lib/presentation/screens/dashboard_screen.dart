@@ -2,10 +2,178 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
+import '../../data/models/notulen_model.dart';
 import 'input_notulen_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
+
+  void _showRoomDetailModal(BuildContext context, String roomName, LocalStore store) {
+    final roomNotulens = store.notulens.where((n) {
+      final rooms = n.room.split(';');
+      return rooms.any((r) => r.trim() == roomName);
+    }).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.doorOpen, color: Color(0xFFF43F5E)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Ruang $roomName',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFBE123C),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Chip(
+                    label: Text('${roomNotulens.length} Sesi'),
+                    backgroundColor: const Color(0xFFFFF1F2),
+                    labelStyle: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFBE123C),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 350,
+                child: roomNotulens.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Belum ada notulen sesi di ruangan ini',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: roomNotulens.length,
+                        itemBuilder: (ctx, idx) {
+                          final n = roomNotulens[idx];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: Color(0xFFFFF1F2),
+                                child: Icon(LucideIcons.user, color: Color(0xFFF43F5E)),
+                              ),
+                              title: Text(
+                                n.childName,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                'Terapis: Bunda ${n.notulen} | Tanggal: ${n.date}',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                _showNotulenDetailModal(context, n);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showNotulenDetailModal(BuildContext context, NotulenModel n) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Notulen: ${n.childName}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFBE123C),
+                    ),
+                  ),
+                  Text(n.date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Ruang: ${n.room} | Terapis: Bunda ${n.notulen}',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const Divider(height: 20),
+              if (n.notes.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1F2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.pin, size: 14, color: Color(0xFFBE123C)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Catatan: "${n.notes}"',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFFBE123C), fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const Text('Program Terapi:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 6),
+              ...n.programsSelected.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4.0),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.checkCircle2, size: 14, color: Colors.green),
+                        const SizedBox(width: 6),
+                        Text(p, style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  )),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +398,7 @@ class DashboardScreen extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  'Real-time Cloud',
+                  'Klik Ruang Untuk Detail',
                   style: TextStyle(fontSize: 10, color: Colors.grey),
                 ),
               ],
@@ -238,22 +406,31 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 12),
             ...AppConfig.rooms.map((room) {
               final count = roomCounts[room] ?? 0;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(room, style: const TextStyle(fontSize: 13)),
-                    Chip(
-                      label: Text('$count Sesi'),
-                      backgroundColor: const Color(0xFFFFF1F2),
-                      labelStyle: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFBE123C),
+              return InkWell(
+                onTap: () => _showRoomDetailModal(context, room, store),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(LucideIcons.doorOpen, size: 16, color: Colors.grey),
+                          const SizedBox(width: 6),
+                          Text(room, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        ],
                       ),
-                    ),
-                  ],
+                      Chip(
+                        label: Text('$count Sesi'),
+                        backgroundColor: const Color(0xFFFFF1F2),
+                        labelStyle: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFBE123C),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }),

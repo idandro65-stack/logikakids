@@ -64,6 +64,17 @@ class SettingsDialog {
               ),
               const SizedBox(height: 6),
 
+              // Ganti Password Option
+              ListTile(
+                leading: const Icon(LucideIcons.keyRound, color: Color(0xFFF43F5E)),
+                title: const Text('Ganti Password Saya', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Ubah kata sandi akun ini', style: TextStyle(fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showChangePasswordModal(context, store);
+                },
+              ),
+
               // Admin Audit Log Option (Only for Admin)
               if (isAdmin)
                 ListTile(
@@ -101,6 +112,71 @@ class SettingsDialog {
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                   );
                 },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static void _showChangePasswordModal(BuildContext context, LocalStore store) {
+    final pwCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Ganti Password Saya',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFBE123C),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: pwCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password Baru',
+                  prefixIcon: Icon(LucideIcons.lock),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (pwCtrl.text.trim().isNotEmpty && store.currentUser != null) {
+                      store.updatePassword(store.currentUser!.username, pwCtrl.text.trim());
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Password berhasil diperbarui!')),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF43F5E)),
+                  icon: const Icon(LucideIcons.check, color: Colors.white),
+                  label: const Text('Simpan Password', style: TextStyle(color: Colors.white)),
+                ),
               ),
             ],
           ),
@@ -149,7 +225,7 @@ class SettingsDialog {
                             child: ListTile(
                               title: Text('${l.userName} (${l.role.toUpperCase()})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                               subtitle: Text(l.description, style: const TextStyle(fontSize: 11)),
-                              trailing: Text(l.timestamp.substring(11, 16), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                              trailing: Text(l.timestamp.length >= 16 ? l.timestamp.substring(11, 16) : l.timestamp, style: const TextStyle(fontSize: 10, color: Colors.grey)),
                             ),
                           );
                         },

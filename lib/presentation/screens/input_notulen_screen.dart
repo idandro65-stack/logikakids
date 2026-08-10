@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/notulen_model.dart';
+import '../../data/models/program_model.dart';
 
 class InputNotulenScreen extends StatefulWidget {
   const InputNotulenScreen({super.key});
@@ -19,6 +20,10 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
   String? _selectedBunda;
   String _selectedRoom = AppConfig.rooms[0];
   final _notesController = TextEditingController();
+
+  final List<String> _selectedPrograms = [];
+  final Map<String, List<int>> _pointsMap = {};
+  final Map<String, String> _statusMap = {};
 
   @override
   void initState() {
@@ -48,9 +53,9 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       childName: _selectedChild!,
       notulen: _selectedBunda!,
       room: _selectedRoom,
-      programsSelected: [],
-      pointsAchieved: {},
-      status: {},
+      programsSelected: _selectedPrograms,
+      pointsAchieved: _pointsMap,
+      status: _statusMap,
       notes: _notesController.text.trim(),
     );
 
@@ -65,6 +70,12 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
   Widget build(BuildContext context) {
     final store = LocalStore.instance;
     final children = store.children;
+    final bundas = store.bundas;
+
+    // Filter available programs in current room
+    final availablePrograms = store.programs
+        .where((p) => p.room == _selectedRoom)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -77,7 +88,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Date Picker
+            // 1. Date Picker
             TextField(
               controller: _dateController,
               decoration: const InputDecoration(
@@ -100,7 +111,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 14),
 
-            // Select Child
+            // 2. Select Child
             DropdownButtonFormField<String>(
               initialValue: _selectedChild,
               decoration: const InputDecoration(
@@ -118,7 +129,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 14),
 
-            // Select Room Chip Selector
+            // 3. Room Selector Chips
             const Text(
               'Pilih Ruang Terapi:',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -138,14 +149,108 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                   onSelected: (selected) {
-                    if (selected) setState(() => _selectedRoom = room);
+                    if (selected) {
+                      setState(() {
+                        _selectedRoom = room;
+                        _selectedPrograms.clear();
+                      });
+                    }
                   },
                 );
               }).toList(),
             ),
+            const SizedBox(height: 16),
+
+            // 4. Multi-Select Programs
+            const Text(
+              'Pilih Program Terapi (Dapat Dicentang Banyak):',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            if (availablePrograms.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text('Belum ada program di ruangan ini', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              )
+            else
+              ...availablePrograms.map((prog) {
+                final isChecked = _selectedPrograms.contains(prog.programName);
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    children: [
+                      CheckboxListTile(
+                        title: Text(
+                          prog.programName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        subtitle: Text('${prog.indicators.length} Indikator Point', style: const TextStyle(fontSize: 11)),
+                        value: isChecked,
+                        activeColor: const Color(0xFFF43F5E),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedPrograms.add(prog.programName);
+                              _statusMap[prog.programName] = 'S';
+                            } else {
+                              _selectedPrograms.remove(prog.programName);
+                            }
+                          });
+                        },
+                      ),
+
+                      // Status Selector if Checked
+                      if (isChecked)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Status Hasil Program:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  _buildStatusChip(prog.programName, 'S', 'Sudah (S)', Colors.green),
+                                  const SizedBox(width: 4),
+                                  _buildStatusChip(prog.programName, 'BS', 'Belum (BS)', Colors.orange),
+                                  const SizedBox(width: 4),
+                                  _buildStatusChip(prog.programName, 'TS', 'Tidak (TS)', Colors.red),
+                                  const SizedBox(width: 4),
+                                  _buildStatusChip(prog.programName, 'K', 'Konsisten (K)', Colors.teal),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }),
+
             const SizedBox(height: 14),
 
-            // Notes TextField
+            // 5. Select Terapis (Bunda)
+            DropdownButtonFormField<String>(
+              initialValue: _selectedBunda,
+              decoration: const InputDecoration(
+                labelText: 'Bunda Terapis Pencatat',
+                prefixIcon: Icon(LucideIcons.userCheck),
+                border: OutlineInputBorder(),
+              ),
+              items: (bundas.isNotEmpty
+                      ? bundas.map((b) => b.name).toList()
+                      : ['Ani', 'Eka', 'Lia', 'Mila', 'Oza'])
+                  .map((name) {
+                return DropdownMenuItem(
+                  value: name,
+                  child: Text('Bunda $name'),
+                );
+              }).toList(),
+              onChanged: (val) => setState(() => _selectedBunda = val),
+            ),
+            const SizedBox(height: 14),
+
+            // 6. Notes TextField
             TextField(
               controller: _notesController,
               maxLines: 3,
@@ -175,6 +280,31 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String progName, String val, String label, Color color) {
+    final isSelected = (_statusMap[progName] ?? 'S') == val;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _statusMap[progName] = val),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? color : color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            val,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.white : color,
+            ),
+          ),
         ),
       ),
     );

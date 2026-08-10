@@ -15,6 +15,170 @@ class RiwayatScreen extends StatefulWidget {
 class _RiwayatScreenState extends State<RiwayatScreen> {
   final TextEditingController _filterController = TextEditingController();
 
+  void _showSessionDetailModal(BuildContext context, NotulenModel n) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(LucideIcons.clipboardCheck, color: Color(0xFFF43F5E)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Sesi: ${n.childName}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFBE123C),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(n.date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Ruang Terapi: ${n.room} | Terapis: Bunda ${n.notulen}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const Divider(height: 20),
+
+                // Special Notes Badge
+                if (n.notes.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1F2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFECDD3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(LucideIcons.pin, size: 16, color: Color(0xFFBE123C)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Catatan Perkembangan: "${n.notes}"',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFFBE123C),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Program & Status List
+                const Text(
+                  'Program Terapi yang Dijalankan:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                if (n.programsSelected.isEmpty)
+                  const Text('Tidak ada rincian program spesifik', style: TextStyle(fontSize: 12, color: Colors.grey))
+                else
+                  ...n.programsSelected.map((prog) {
+                    final statusVal = n.status[prog] ?? 'S';
+                    final statusLabel = statusVal == 'S'
+                        ? 'Sudah (S)'
+                        : statusVal == 'BS'
+                            ? 'Belum Sempurna (BS)'
+                            : statusVal == 'TS'
+                                ? 'Tidak Selesai (TS)'
+                                : 'Konsisten (K)';
+
+                    final statusColor = statusVal == 'S' || statusVal == 'K'
+                        ? Colors.green
+                        : statusVal == 'BS'
+                            ? Colors.orange
+                            : Colors.red;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(10.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                prog,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ),
+                            Chip(
+                              label: Text(statusLabel),
+                              backgroundColor: statusColor.withOpacity(0.1),
+                              labelStyle: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: statusColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+
+                const SizedBox(height: 16),
+                // Actions PDF & Share
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          PdfService.generateAndPrintRaport(context, n.childName);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF43F5E),
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(LucideIcons.fileText, size: 16),
+                        label: const Text('Cetak Raport PDF', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          PdfService.shareToWhatsApp(context, n.childName);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green,
+                        ),
+                        icon: const Icon(LucideIcons.send, size: 16),
+                        label: const Text('Kirim WA', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -26,6 +190,13 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         // Group Notulens by Child Name
         Map<String, List<NotulenModel>> groupedByChild = {};
         for (var n in notulens) {
+          if (_filterController.text.isNotEmpty) {
+            final filter = _filterController.text.toLowerCase();
+            final matchProg = n.programsSelected.any((p) => p.toLowerCase().contains(filter));
+            final matchChild = n.childName.toLowerCase().contains(filter);
+            if (!matchProg && !matchChild) continue;
+          }
+
           if (!groupedByChild.containsKey(n.childName)) {
             groupedByChild[n.childName] = [];
           }
@@ -45,7 +216,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   controller: _filterController,
                   onChanged: (val) => setState(() {}),
                   decoration: InputDecoration(
-                    hintText: 'Filter Program Terapi (Vestibular, Gunting, dll)...',
+                    hintText: 'Filter Program Terapi / Nama Anak...',
                     prefixIcon: const Icon(LucideIcons.filter),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     border: OutlineInputBorder(
@@ -161,29 +332,42 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                       ),
 
                                     const SizedBox(height: 10),
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          const Row(
+                                    // Session Items List
+                                    ...childNotulens.take(3).map((n) {
+                                      return InkWell(
+                                        onTap: () => _showSessionDetailModal(context, n),
+                                        child: Container(
+                                          margin: const EdgeInsets.only(bottom: 6),
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade100,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Icon(LucideIcons.clipboardCheck, size: 14, color: Colors.grey),
-                                              SizedBox(width: 4),
-                                              Text('Riwayat Sesi Terapi:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                              Row(
+                                                children: [
+                                                  const Icon(LucideIcons.calendar, size: 12, color: Colors.grey),
+                                                  const SizedBox(width: 4),
+                                                  Text('${n.date} (${n.room})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                                ],
+                                              ),
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    'Bunda ${n.notulen}',
+                                                    style: const TextStyle(fontSize: 11, color: Color(0xFFBE123C)),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
+                                                ],
+                                              ),
                                             ],
                                           ),
-                                          Text(
-                                            '${childNotulens.length} Sesi Tercatat',
-                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFBE123C)),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                        ),
+                                      );
+                                    }),
                                   ],
                                 ),
                               ),

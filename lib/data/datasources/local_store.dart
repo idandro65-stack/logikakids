@@ -160,7 +160,29 @@ class LocalStore extends ChangeNotifier {
     _persist();
   }
 
-  // --- CRUD ACTIONS ---
+  bool updatePassword(String username, String newPassword) {
+    final idx = _users.indexWhere((u) => u.username == username);
+    if (idx != -1) {
+      final old = _users[idx];
+      final updated = UserModel(
+        username: old.username,
+        password: newPassword,
+        name: old.name,
+        role: old.role,
+      );
+      _users[idx] = updated;
+      if (currentUser?.username == username) {
+        currentUser = updated;
+      }
+      addLog('UPDATE_PASSWORD', 'Mengubah password pengguna: ${old.name}');
+      _persist();
+      SupabaseService.instance.syncToCloud('users', updated.toJson());
+      return true;
+    }
+    return false;
+  }
+
+  // --- CHILDREN CRUD ---
   void addChild(String name, String category) {
     final newChild = ChildModel(
       id: 'child_${DateTime.now().millisecondsSinceEpoch}',
@@ -174,6 +196,22 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.syncToCloud('children', newChild.toJson());
   }
 
+  void updateChild(String id, String newName, String newCategory) {
+    final idx = _children.indexWhere((c) => c.id == id);
+    if (idx != -1) {
+      final updated = ChildModel(
+        id: id,
+        name: newName.trim(),
+        category: newCategory.toLowerCase(),
+        createdAt: _children[idx].createdAt,
+      );
+      _children[idx] = updated;
+      addLog('UPDATE_CHILD', 'Mengubah data anak: \'${newName.trim()}\'');
+      _persist();
+      SupabaseService.instance.syncToCloud('children', updated.toJson());
+    }
+  }
+
   void deleteChild(String id) {
     final target = _children.firstWhere((c) => c.id == id, orElse: () => ChildModel(id: '', name: '', category: ''));
     _children.removeWhere((c) => c.id == id);
@@ -184,6 +222,73 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.deleteFromCloud('children', id);
   }
 
+  // --- STAFF/USER CRUD ---
+  void addUser(UserModel user) {
+    _users.insert(0, user);
+    addLog('ADD_USER', 'Menambahkan akun staf/admin baru: ${user.name} (${user.username})');
+    _persist();
+    SupabaseService.instance.syncToCloud('users', user.toJson());
+
+    // Also add to bundas list if role is staf
+    if (user.role == 'staf') {
+      final bundaName = user.name;
+      if (!_bundas.any((b) => b.name.toLowerCase() == bundaName.toLowerCase())) {
+        final newBunda = BundaModel(id: 'SUB_${DateTime.now().millisecondsSinceEpoch}', name: bundaName);
+        _bundas.add(newBunda);
+        SupabaseService.instance.syncToCloud('bundas', newBunda.toJson());
+      }
+    }
+  }
+
+  void updateUser(UserModel user) {
+    final idx = _users.indexWhere((u) => u.username == user.username);
+    if (idx != -1) {
+      _users[idx] = user;
+      addLog('UPDATE_USER', 'Mengubah akun staf/admin: ${user.name}');
+      _persist();
+      SupabaseService.instance.syncToCloud('users', user.toJson());
+    }
+  }
+
+  void deleteUser(String username) {
+    final target = _users.firstWhere((u) => u.username == username, orElse: () => UserModel(username: '', password: '', name: '', role: ''));
+    _users.removeWhere((u) => u.username == username);
+    if (target.username.isNotEmpty) {
+      addLog('DELETE_USER', 'Menghapus akun pengguna: ${target.name} (${target.username})');
+    }
+    _persist();
+    SupabaseService.instance.deleteFromCloud('users', username);
+  }
+
+  // --- PROGRAM CRUD ---
+  void addProgram(ProgramModel program) {
+    _programs.insert(0, program);
+    addLog('ADD_PROGRAM', 'Menambahkan program terapi baru: ${program.programName} (${program.room})');
+    _persist();
+    SupabaseService.instance.syncToCloud('programs', program.toJson());
+  }
+
+  void updateProgram(ProgramModel program) {
+    final idx = _programs.indexWhere((p) => p.id == program.id);
+    if (idx != -1) {
+      _programs[idx] = program;
+      addLog('UPDATE_PROGRAM', 'Mengubah program terapi: ${program.programName}');
+      _persist();
+      SupabaseService.instance.syncToCloud('programs', program.toJson());
+    }
+  }
+
+  void deleteProgram(String id) {
+    final target = _programs.firstWhere((p) => p.id == id, orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10));
+    _programs.removeWhere((p) => p.id == id);
+    if (target.id.isNotEmpty) {
+      addLog('DELETE_PROGRAM', 'Menghapus program terapi: ${target.programName}');
+    }
+    _persist();
+    SupabaseService.instance.deleteFromCloud('programs', id);
+  }
+
+  // --- NOTULEN CRUD ---
   void addNotulen(NotulenModel notulen) {
     _notulens.insert(0, notulen);
     addLog('ADD_NOTULEN', 'Bunda ${notulen.notulen} menginput notulen harian untuk ${notulen.childName} (${notulen.room})');

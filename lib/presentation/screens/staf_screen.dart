@@ -1,9 +1,312 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../data/datasources/local_store.dart';
+import '../../data/models/user_model.dart';
 
-class StafScreen extends StatelessWidget {
+class StafScreen extends StatefulWidget {
   const StafScreen({super.key});
+
+  @override
+  State<StafScreen> createState() => _StafScreenState();
+}
+
+class _StafScreenState extends State<StafScreen> {
+  void _showAddStaffModal(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final userCtrl = TextEditingController();
+    final pwCtrl = TextEditingController();
+    String role = 'staf';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tambah Staf / Admin Baru',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFBE123C),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Lengkap Staf / Terapis',
+                      prefixIcon: Icon(LucideIcons.user),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: userCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Username Akses',
+                      prefixIcon: Icon(LucideIcons.atSign),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: pwCtrl,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: Icon(LucideIcons.lock),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Bunda Terapis (Staf)', style: TextStyle(fontSize: 11)),
+                          value: 'staf',
+                          groupValue: role,
+                          onChanged: (val) => setModalState(() => role = val!),
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Admin Klinik', style: TextStyle(fontSize: 11)),
+                          value: 'admin',
+                          groupValue: role,
+                          onChanged: (val) => setModalState(() => role = val!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (nameCtrl.text.trim().isNotEmpty && userCtrl.text.trim().isNotEmpty) {
+                          final newUser = UserModel(
+                            username: userCtrl.text.trim().toLowerCase(),
+                            password: pwCtrl.text.trim().isEmpty ? '123456' : pwCtrl.text.trim(),
+                            name: nameCtrl.text.trim(),
+                            role: role,
+                          );
+                          LocalStore.instance.addUser(newUser);
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Berhasil menambahkan staf ${newUser.name}')),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF43F5E)),
+                      icon: const Icon(LucideIcons.check, color: Colors.white),
+                      label: const Text('Simpan Staf Baru', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showEditStaffModal(BuildContext context, UserModel user) {
+    final nameCtrl = TextEditingController(text: user.name);
+    final userCtrl = TextEditingController(text: user.username);
+    final pwCtrl = TextEditingController(text: user.password);
+    String role = user.role;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Edit Data Staf',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFBE123C),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Lengkap Staf',
+                      prefixIcon: Icon(LucideIcons.user),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: userCtrl,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Username (Tidak dapat diubah)',
+                      prefixIcon: Icon(LucideIcons.atSign),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: pwCtrl,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Password Baru',
+                      prefixIcon: Icon(LucideIcons.lock),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Bunda Terapis (Staf)', style: TextStyle(fontSize: 11)),
+                          value: 'staf',
+                          groupValue: role,
+                          onChanged: (val) => setModalState(() => role = val!),
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Admin Klinik', style: TextStyle(fontSize: 11)),
+                          value: 'admin',
+                          groupValue: role,
+                          onChanged: (val) => setModalState(() => role = val!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final updated = UserModel(
+                          username: user.username,
+                          password: pwCtrl.text.trim(),
+                          name: nameCtrl.text.trim(),
+                          role: role,
+                        );
+                        LocalStore.instance.updateUser(updated);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Berhasil memperbarui staf ${updated.name}')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF43F5E)),
+                      icon: const Icon(LucideIcons.save, color: Colors.white),
+                      label: const Text('Simpan Perubahan', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showStaffHistoryModal(BuildContext context, UserModel user) {
+    final staffNotulens = LocalStore.instance.notulens.where((n) {
+      final nameClean = user.name.toLowerCase().replaceAll('bunda.', '').trim();
+      final notulenClean = n.notulen.toLowerCase().replaceAll('bunda.', '').trim();
+      return notulenClean.contains(nameClean) || nameClean.contains(notulenClean);
+    }).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Riwayat Notulen: Bunda ${user.name}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFBE123C),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Total ${staffNotulens.length} Sesi Terapi Dikerjakan',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              const Divider(height: 20),
+              SizedBox(
+                height: 350,
+                child: staffNotulens.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Belum ada riwayat notulen dari terapis ini',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: staffNotulens.length,
+                        itemBuilder: (ctx, idx) {
+                          final n = staffNotulens[idx];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              title: Text(n.childName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text('Tanggal: ${n.date} | Ruang: ${n.room}', style: const TextStyle(fontSize: 11)),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +328,11 @@ class StafScreen extends StatelessWidget {
         final users = store.users;
 
         return Scaffold(
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _showAddStaffModal(context),
+            backgroundColor: const Color(0xFFF43F5E),
+            child: const Icon(LucideIcons.plus, color: Colors.white),
+          ),
           body: ListView.builder(
             padding: const EdgeInsets.all(16.0),
             itemCount: users.length,
@@ -49,6 +357,24 @@ class StafScreen extends StatelessWidget {
                   subtitle: Text(
                     'Username: ${u.username} | Role: ${u.role.toUpperCase()}',
                     style: const TextStyle(fontSize: 11),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(LucideIcons.history, size: 18, color: Colors.teal),
+                        onPressed: () => _showStaffHistoryModal(context, u),
+                      ),
+                      IconButton(
+                        icon: const Icon(LucideIcons.edit2, size: 18, color: Colors.blue),
+                        onPressed: () => _showEditStaffModal(context, u),
+                      ),
+                      if (u.username != 'admin')
+                        IconButton(
+                          icon: const Icon(LucideIcons.trash2, size: 18, color: Colors.red),
+                          onPressed: () => LocalStore.instance.deleteUser(u.username),
+                        ),
+                    ],
                   ),
                 ),
               );
