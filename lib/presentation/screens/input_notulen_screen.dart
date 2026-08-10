@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/notulen_model.dart';
+import '../../data/models/child_model.dart';
 
 class InputNotulenScreen extends StatefulWidget {
-  const InputNotulenScreen({super.key});
+  final NotulenModel? editNotulen;
+  const InputNotulenScreen({super.key, this.editNotulen});
 
   @override
   State<InputNotulenScreen> createState() => _InputNotulenScreenState();
 }
 
 class _InputNotulenScreenState extends State<InputNotulenScreen> {
-  final _dateController = TextEditingController(
-      text: DateFormat('yyyy-MM-dd').format(DateTime.now()));
+  late TextEditingController _dateController;
+  final TextEditingController _childSearchController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
+
   String? _selectedChild;
   String? _selectedBunda;
-  final Set<String> _selectedRooms = {AppConfig.rooms[0]};
-  final _notesController = TextEditingController();
+  Set<String> _selectedRooms = {};
 
   final List<String> _selectedPrograms = [];
   final Map<String, List<int>> _pointsMap = {};
@@ -28,13 +30,30 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
   void initState() {
     super.initState();
     final store = LocalStore.instance;
-    if (store.children.isNotEmpty) {
-      _selectedChild = store.children[0].name;
-    }
-    if (store.currentUser != null) {
-      _selectedBunda = store.currentUser!.name;
-    } else if (store.bundas.isNotEmpty) {
-      _selectedBunda = store.bundas[0].name;
+
+    if (widget.editNotulen != null) {
+      final n = widget.editNotulen!;
+      _dateController = TextEditingController(text: n.date);
+      _selectedChild = n.childName;
+      _selectedBunda = n.notulen;
+      _selectedRooms = n.room.split(';').map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+      _selectedPrograms.addAll(n.programsSelected);
+      _statusMap.addAll(n.status);
+      _notesController.text = n.notes;
+    } else {
+      _dateController = TextEditingController(
+          text: DateFormat('yyyy-MM-dd').format(DateTime.now()));
+      if (store.children.isNotEmpty) {
+        _selectedChild = store.children[0].name;
+      }
+      if (store.currentUser != null) {
+        _selectedBunda = store.currentUser!.name;
+      } else if (store.bundas.isNotEmpty) {
+        _selectedBunda = store.bundas[0].name;
+      }
+      if (store.allRooms.isNotEmpty) {
+        _selectedRooms = {store.allRooms[0]};
+      }
     }
   }
 
@@ -53,8 +72,11 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       return;
     }
 
-    final newNotulen = NotulenModel(
-      id: 'notulen_${DateTime.now().millisecondsSinceEpoch}',
+    final store = LocalStore.instance;
+    final isEdit = widget.editNotulen != null;
+
+    final notulenObj = NotulenModel(
+      id: isEdit ? widget.editNotulen!.id : 'notulen_${DateTime.now().millisecondsSinceEpoch}',
       date: _dateController.text,
       childName: _selectedChild!,
       notulen: _selectedBunda!,
@@ -65,27 +87,47 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       notes: _notesController.text.trim(),
     );
 
-    LocalStore.instance.addNotulen(newNotulen);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Notulen harian berhasil disimpan!')),
-    );
+    if (isEdit) {
+      store.updateNotulen(notulenObj);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notulen sesi berhasil diperbarui!')),
+      );
+    } else {
+      store.addNotulen(notulenObj);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notulen harian berhasil disimpan!')),
+      );
+    }
+
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final store = LocalStore.instance;
-    final children = store.children;
-    final bundas = store.bundas;
 
-    // Filter available programs in ANY of the selected rooms
+    // Filter Children by Search Query
+    List<ChildModel> filteredChildren = store.children;
+    if (_childSearchController.text.isNotEmpty) {
+      final q = _childSearchController.text.toLowerCase();
+      filteredChildren = filteredChildren.where((c) => c.name.toLowerCase().contains(q)).toList();
+    }
+
+    // Get Completed Programs for Selected Child to disable them!
+    final completedSet = _selectedChild != null
+        ? store.getChildCompletedPrograms(_selectedChild!, excludeNotulenId: widget.editNotulen?.id)
+        : <String>{};
+
+    // Available Programs for Selected Rooms
     final availablePrograms = store.programs
         .where((p) => _selectedRooms.contains(p.room))
         .toList();
 
+    final isEdit = widget.editNotulen != null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Input Notulen Terapi Harian'),
+        title: Text(isEdit ? 'Edit Notulen Sesi' : 'Input Notulen Terapi Harian'),
         backgroundColor: const Color(0xFFF43F5E),
         foregroundColor: Colors.white,
       ),
@@ -117,15 +159,28 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 2. Select Child
+            // 2. Search Child & Select Dropdown
+            TextField(
+              controller: _childSearchController,
+              onChanged: (val) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Cari Nama Anak...',
+                prefixIcon: Icon(LucideIcons.search),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+
             DropdownButtonFormField<String>(
-              initialValue: _selectedChild,
+              key: ValueKey(_selectedChild ?? 'none'),
+              initialValue: filteredChildren.any((c) => c.name == _selectedChild) ? _selectedChild : null,
               decoration: const InputDecoration(
                 labelText: 'Pilih Nama Anak',
                 prefixIcon: Icon(LucideIcons.user),
                 border: OutlineInputBorder(),
               ),
-              items: children.map((c) {
+              items: filteredChildren.map((c) {
                 return DropdownMenuItem(
                   value: c.name,
                   child: Text('${c.name} (${c.category.toUpperCase()})'),
@@ -135,7 +190,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 3. Room Selector Chips (Multi-Select Enabled!)
+            // 3. Multi-Select Room Selector Chips
             const Text(
               'Pilih Ruang Terapi (Bisa Lebih Dari 1):',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -143,7 +198,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
-              children: AppConfig.rooms.map((room) {
+              children: store.allRooms.map((room) {
                 final isSelected = _selectedRooms.contains(room);
                 return FilterChip(
                   label: Text(room),
@@ -171,7 +226,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 4. Multi-Select Programs
+            // 4. Multi-Select Programs (With Completed Disabling!)
             const Text(
               'Pilih Program Terapi (Dapat Dicentang Banyak):',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -184,29 +239,57 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
               )
             else
               ...availablePrograms.map((prog) {
+                final isCompleted = completedSet.contains(prog.id) || completedSet.contains(prog.programName);
                 final isChecked = _selectedPrograms.contains(prog.programName);
+
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
+                  color: isCompleted ? Colors.grey.shade100 : null,
                   child: Column(
                     children: [
                       CheckboxListTile(
-                        title: Text(
-                          prog.programName,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        title: Row(
+                          children: [
+                            Text(
+                              prog.programName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                decoration: isCompleted ? TextDecoration.lineThrough : null,
+                                color: isCompleted ? Colors.grey : Colors.black87,
+                              ),
+                            ),
+                            if (isCompleted) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Tuntas (Sesi Lalu)',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         subtitle: Text('${prog.room} | ${prog.indicators.length} Indikator Point', style: const TextStyle(fontSize: 11)),
                         value: isChecked,
                         activeColor: const Color(0xFFF43F5E),
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true) {
-                              _selectedPrograms.add(prog.programName);
-                              _statusMap[prog.programName] = 'S';
-                            } else {
-                              _selectedPrograms.remove(prog.programName);
-                            }
-                          });
-                        },
+                        onChanged: isCompleted
+                            ? null // Disabled if already completed!
+                            : (val) {
+                                setState(() {
+                                  if (val == true) {
+                                    _selectedPrograms.add(prog.programName);
+                                    _statusMap[prog.programName] = 'S';
+                                  } else {
+                                    _selectedPrograms.remove(prog.programName);
+                                  }
+                                });
+                              },
                       ),
 
                       // Status Selector if Checked
@@ -247,8 +330,8 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                 prefixIcon: Icon(LucideIcons.userCheck),
                 border: OutlineInputBorder(),
               ),
-              items: (bundas.isNotEmpty
-                      ? bundas.map((b) => b.name).toList()
+              items: (store.bundas.isNotEmpty
+                      ? store.bundas.map((b) => b.name).toList()
                       : ['Ani', 'Eka', 'Lia', 'Mila', 'Oza'])
                   .map((name) {
                 return DropdownMenuItem(
@@ -282,10 +365,10 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFF43F5E),
                 ),
-                icon: const Icon(LucideIcons.save, color: Colors.white),
-                label: const Text(
-                  'Simpan Notulen Sesi',
-                  style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                icon: Icon(isEdit ? LucideIcons.save : LucideIcons.check, color: Colors.white),
+                label: Text(
+                  isEdit ? 'Simpan Perubahan Notulen' : 'Simpan Notulen Sesi',
+                  style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
             ),

@@ -4,6 +4,7 @@ import '../../core/services/pdf_service.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/child_model.dart';
 import '../../data/models/notulen_model.dart';
+import 'input_notulen_screen.dart';
 
 class RiwayatScreen extends StatefulWidget {
   const RiwayatScreen({super.key});
@@ -13,7 +14,9 @@ class RiwayatScreen extends StatefulWidget {
 }
 
 class _RiwayatScreenState extends State<RiwayatScreen> {
-  final TextEditingController _filterController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  String _categoryFilter = 'all';
+  String _roomFilter = 'all';
 
   void _showSessionDetailModal(BuildContext context, NotulenModel n) {
     showModalBottomSheet(
@@ -149,7 +152,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   }),
 
                 const SizedBox(height: 16),
-                // Actions PDF & Share & Delete
+                // Actions PDF & Share & Edit & Delete
                 Row(
                   children: [
                     Expanded(
@@ -161,24 +164,28 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                           backgroundColor: const Color(0xFFF43F5E),
                           foregroundColor: Colors.white,
                         ),
-                        icon: const Icon(LucideIcons.fileText, size: 16),
-                        label: const Text('Raport PDF', style: TextStyle(fontSize: 12)),
+                        icon: const Icon(LucideIcons.fileText, size: 14),
+                        label: const Text('Raport PDF', style: TextStyle(fontSize: 11)),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          PdfService.shareToWhatsApp(context, n.childName);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.green,
-                        ),
-                        icon: const Icon(LucideIcons.send, size: 16),
-                        label: const Text('Kirim WA', style: TextStyle(fontSize: 12)),
-                      ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(LucideIcons.edit2, color: Colors.blue),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => InputNotulenScreen(editNotulen: n),
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(width: 6),
+                    IconButton(
+                      icon: const Icon(LucideIcons.send, color: Colors.green),
+                      onPressed: () {
+                        PdfService.shareToWhatsApp(context, n.childName);
+                      },
+                    ),
                     IconButton(
                       icon: const Icon(LucideIcons.trash2, color: Colors.red),
                       onPressed: () {
@@ -207,17 +214,38 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         final store = LocalStore.instance;
         final notulens = store.notulens;
 
-        // Group Notulens by Child Name
+        // Group Notulens by Child Name with Comprehensive Web Filters
         Map<String, List<NotulenModel>> groupedByChild = {};
+
         for (var n in notulens) {
-          if (_filterController.text.isNotEmpty) {
-            final filter = _filterController.text.toLowerCase();
+          final childObj = store.children.firstWhere(
+            (c) => c.name == n.childName,
+            orElse: () => ChildModel(id: '', name: n.childName, category: 'reguler'),
+          );
+
+          // 1. Category Filter
+          if (_categoryFilter != 'all' && childObj.category != _categoryFilter) {
+            continue;
+          }
+
+          // 2. Room Filter
+          if (_roomFilter != 'all') {
+            final rooms = n.room.split(';').map((r) => r.trim());
+            if (!rooms.contains(_roomFilter)) continue;
+          }
+
+          // 3. Search Bar Filter
+          if (_searchController.text.isNotEmpty) {
+            final query = _searchController.text.toLowerCase();
+            final matchChild = n.childName.toLowerCase().contains(query);
+            final matchRoom = n.room.toLowerCase().contains(query);
+            final matchNotes = n.notes.toLowerCase().contains(query);
             final matchProg = n.programsSelected.any((p) {
               final clean = store.resolveProgramName(p);
-              return clean.toLowerCase().contains(filter);
+              return clean.toLowerCase().contains(query);
             });
-            final matchChild = n.childName.toLowerCase().contains(filter);
-            if (!matchProg && !matchChild) continue;
+
+            if (!matchChild && !matchRoom && !matchNotes && !matchProg) continue;
           }
 
           if (!groupedByChild.containsKey(n.childName)) {
@@ -234,18 +262,56 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Program Filter Field
+                // 1. Search Bar
                 TextField(
-                  controller: _filterController,
+                  controller: _searchController,
                   onChanged: (val) => setState(() {}),
                   decoration: InputDecoration(
-                    hintText: 'Filter Program Terapi / Nama Anak...',
-                    prefixIcon: const Icon(LucideIcons.filter),
+                    hintText: 'Cari nama anak / program / ruangan / catatan...',
+                    prefixIcon: const Icon(LucideIcons.search),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
+                ),
+                const SizedBox(height: 10),
+
+                // 2. Category & Room Filters Toolbar
+                Row(
+                  children: [
+                    // Category Chips
+                    Expanded(
+                      flex: 3,
+                      child: Row(
+                        children: [
+                          _buildCatChip('Semua', 'all'),
+                          const SizedBox(width: 4),
+                          _buildCatChip('Intensif', 'intensif'),
+                          const SizedBox(width: 4),
+                          _buildCatChip('Reguler', 'reguler'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+
+                    // Room Dropdown Filter
+                    Expanded(
+                      flex: 2,
+                      child: DropdownButtonFormField<String>(
+                        value: _roomFilter,
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          const DropdownMenuItem(value: 'all', child: Text('Semua Ruang', style: TextStyle(fontSize: 11))),
+                          ...store.allRooms.map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 11)))),
+                        ],
+                        onChanged: (val) => setState(() => _roomFilter = val!),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
 
@@ -254,7 +320,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   child: childNames.isEmpty
                       ? const Center(
                           child: Text(
-                            'Belum ada riwayat notulen tercatat',
+                            'Tidak ada data riwayat notulen sesuai filter',
                             style: TextStyle(color: Colors.grey),
                           ),
                         )
@@ -355,39 +421,59 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                       ),
 
                                     const SizedBox(height: 10),
-                                    // Session Items List
+                                    // Session Items List with EDIT Button!
                                     ...childNotulens.take(3).map((n) {
-                                      return InkWell(
-                                        onTap: () => _showSessionDetailModal(context, n),
-                                        child: Container(
-                                          margin: const EdgeInsets.only(bottom: 6),
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade100,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  const Icon(LucideIcons.calendar, size: 12, color: Colors.grey),
-                                                  const SizedBox(width: 4),
-                                                  Text('${n.date} (${n.room})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                                ],
+                                      return Container(
+                                        margin: const EdgeInsets.only(bottom: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade100,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Expanded(
+                                              child: InkWell(
+                                                onTap: () => _showSessionDetailModal(context, n),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(LucideIcons.calendar, size: 12, color: Colors.grey),
+                                                    const SizedBox(width: 4),
+                                                    Expanded(
+                                                      child: Text(
+                                                        '${n.date} (${n.room})',
+                                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
-                                              Row(
-                                                children: [
-                                                  Text(
-                                                    'Bunda ${n.notulen}',
-                                                    style: const TextStyle(fontSize: 11, color: Color(0xFFBE123C)),
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
+                                            ),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  'Bunda ${n.notulen}',
+                                                  style: const TextStyle(fontSize: 11, color: Color(0xFFBE123C)),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                // EDIT BUTTON!
+                                                IconButton(
+                                                  constraints: const BoxConstraints(),
+                                                  padding: const EdgeInsets.all(4),
+                                                  icon: const Icon(LucideIcons.edit2, size: 14, color: Colors.blue),
+                                                  onPressed: () {
+                                                    Navigator.of(context).push(
+                                                      MaterialPageRoute(
+                                                        builder: (_) => InputNotulenScreen(editNotulen: n),
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       );
                                     }),
@@ -403,6 +489,31 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCatChip(String label, String value) {
+    final isSelected = _categoryFilter == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _categoryFilter = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFFF43F5E) : Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.white : Colors.black87,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

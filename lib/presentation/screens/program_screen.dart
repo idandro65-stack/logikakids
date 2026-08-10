@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/program_model.dart';
 
@@ -12,10 +11,78 @@ class ProgramScreen extends StatefulWidget {
 }
 
 class _ProgramScreenState extends State<ProgramScreen> {
-  void _showAddProgramModal(BuildContext context) {
+  void _showAddRoomModal(BuildContext context, LocalStore store) {
+    final roomCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                MediaQuery.of(ctx).padding.bottom +
+                20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Tambah Ruang Terapi Baru',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFBE123C),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: roomCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Ruangan (Contoh: Snoezelen / Hydrotherapy)',
+                  prefixIcon: Icon(LucideIcons.doorOpen),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (roomCtrl.text.trim().isNotEmpty) {
+                      store.addRoom(roomCtrl.text.trim());
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Berhasil menambah ruang ${roomCtrl.text.trim()}')),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF43F5E)),
+                  icon: const Icon(LucideIcons.check, color: Colors.white),
+                  label: const Text('Simpan Ruang Terapi', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddProgramModal(BuildContext context, LocalStore store) {
     final nameCtrl = TextEditingController();
     final indicatorsCtrl = TextEditingController();
-    String selectedRoom = AppConfig.rooms[0];
+    final rooms = store.allRooms;
+    String selectedRoom = rooms.isNotEmpty ? rooms[0] : 'Sensori Integrasi';
     int targetPoints = 10;
 
     showModalBottomSheet(
@@ -56,7 +123,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                       labelText: 'Ruang Terapi',
                       border: OutlineInputBorder(),
                     ),
-                    items: AppConfig.rooms.map((r) {
+                    items: store.allRooms.map((r) {
                       return DropdownMenuItem(value: r, child: Text(r));
                     }).toList(),
                     onChanged: (val) => setModalState(() => selectedRoom = val!),
@@ -100,7 +167,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                             targetPoints: targetPoints,
                           );
 
-                          LocalStore.instance.addProgram(newProg);
+                          store.addProgram(newProg);
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Berhasil menambahkan program ${newProg.programName}')),
@@ -121,10 +188,10 @@ class _ProgramScreenState extends State<ProgramScreen> {
     );
   }
 
-  void _showEditProgramModal(BuildContext context, ProgramModel prog) {
+  void _showEditProgramModal(BuildContext context, ProgramModel prog, LocalStore store) {
     final nameCtrl = TextEditingController(text: prog.programName);
     final indicatorsCtrl = TextEditingController(text: prog.indicators.join(', '));
-    String selectedRoom = prog.room;
+    String selectedRoom = store.allRooms.contains(prog.room) ? prog.room : (store.allRooms.isNotEmpty ? store.allRooms[0] : 'Sensori Integrasi');
 
     showModalBottomSheet(
       context: context,
@@ -164,7 +231,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                       labelText: 'Ruang Terapi',
                       border: OutlineInputBorder(),
                     ),
-                    items: AppConfig.rooms.map((r) {
+                    items: store.allRooms.map((r) {
                       return DropdownMenuItem(value: r, child: Text(r));
                     }).toList(),
                     onChanged: (val) => setModalState(() => selectedRoom = val!),
@@ -207,7 +274,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                             targetPoints: prog.targetPoints,
                           );
 
-                          LocalStore.instance.updateProgram(updated);
+                          store.updateProgram(updated);
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Berhasil memperbarui program ${updated.programName}')),
@@ -235,21 +302,37 @@ class _ProgramScreenState extends State<ProgramScreen> {
       builder: (context, _) {
         final store = LocalStore.instance;
         final programs = store.programs;
+        final allRooms = store.allRooms;
         final isAdmin = store.currentUser?.role == 'admin';
 
         return Scaffold(
           floatingActionButton: isAdmin
-              ? FloatingActionButton(
-                  onPressed: () => _showAddProgramModal(context),
-                  backgroundColor: const Color(0xFFF43F5E),
-                  child: const Icon(LucideIcons.plus, color: Colors.white),
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FloatingActionButton.extended(
+                      heroTag: 'btn_add_room',
+                      onPressed: () => _showAddRoomModal(context, store),
+                      backgroundColor: Colors.teal,
+                      icon: const Icon(LucideIcons.doorOpen, color: Colors.white, size: 18),
+                      label: const Text('Ruangan Baru', style: TextStyle(color: Colors.white, fontSize: 12)),
+                    ),
+                    const SizedBox(height: 8),
+                    FloatingActionButton.extended(
+                      heroTag: 'btn_add_prog',
+                      onPressed: () => _showAddProgramModal(context, store),
+                      backgroundColor: const Color(0xFFF43F5E),
+                      icon: const Icon(LucideIcons.plus, color: Colors.white, size: 18),
+                      label: const Text('Program Baru', style: TextStyle(color: Colors.white, fontSize: 12)),
+                    ),
+                  ],
                 )
               : null,
           body: ListView.builder(
             padding: const EdgeInsets.all(16.0),
-            itemCount: AppConfig.rooms.length,
+            itemCount: allRooms.length,
             itemBuilder: (ctx, idx) {
-              final roomName = AppConfig.rooms[idx];
+              final roomName = allRooms[idx];
               final roomProgs =
                   programs.where((p) => p.room == roomName).toList();
 
@@ -298,7 +381,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
                                     children: [
                                       IconButton(
                                         icon: const Icon(LucideIcons.edit2, size: 16, color: Colors.blue),
-                                        onPressed: () => _showEditProgramModal(context, prog),
+                                        onPressed: () => _showEditProgramModal(context, prog, store),
                                       ),
                                       IconButton(
                                         icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.red),

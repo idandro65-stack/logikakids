@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../../app_config.dart';
 import '../models/child_model.dart';
 import '../models/notulen_model.dart';
 import '../models/program_model.dart';
@@ -25,6 +26,7 @@ class LocalStore extends ChangeNotifier {
   List<BundaModel> _bundas = [];
   List<UserModel> _users = [];
   List<LogModel> _logs = [];
+  List<String> _customRooms = [];
 
   List<ChildModel> get children => List.unmodifiable(_children);
   List<NotulenModel> get notulens => List.unmodifiable(_notulens);
@@ -32,6 +34,11 @@ class LocalStore extends ChangeNotifier {
   List<BundaModel> get bundas => List.unmodifiable(_bundas);
   List<UserModel> get users => List.unmodifiable(_users);
   List<LogModel> get logs => List.unmodifiable(_logs);
+
+  List<String> get allRooms {
+    final set = <String>{...AppConfig.rooms, ..._customRooms};
+    return set.toList();
+  }
 
   Future<void> init() async {
     await Hive.initFlutter();
@@ -81,6 +88,12 @@ class LocalStore extends ChangeNotifier {
         _logs = list.map((e) => LogModel.fromJson(e)).toList();
       }
 
+      final rawRooms = _box!.get('custom_rooms');
+      if (rawRooms != null) {
+        final List list = jsonDecode(rawRooms);
+        _customRooms = list.map((e) => e.toString()).toList();
+      }
+
       final rawAuth = _box!.get('auth_session');
       if (rawAuth != null) {
         currentUser = UserModel.fromJson(jsonDecode(rawAuth));
@@ -99,6 +112,7 @@ class LocalStore extends ChangeNotifier {
       _box!.put('bundas', jsonEncode(_bundas.map((e) => e.toJson()).toList()));
       _box!.put('users', jsonEncode(_users.map((e) => e.toJson()).toList()));
       _box!.put('logs', jsonEncode(_logs.map((e) => e.toJson()).toList()));
+      _box!.put('custom_rooms', jsonEncode(_customRooms));
 
       if (currentUser != null) {
         _box!.put('auth_session', jsonEncode(currentUser!.toJson()));
@@ -128,6 +142,44 @@ class LocalStore extends ChangeNotifier {
       _users = InitialSeedData.users;
     }
     _persist();
+  }
+
+  // --- DYNAMIC ROOM MANAGEMENT ---
+  void addRoom(String roomName) {
+    final clean = roomName.trim();
+    if (clean.isNotEmpty && !allRooms.contains(clean)) {
+      _customRooms.add(clean);
+      addLog('ADD_ROOM', 'Menambahkan ruang terapi baru: \'$clean\'');
+      _persist();
+    }
+  }
+
+  void deleteRoom(String roomName) {
+    _customRooms.removeWhere((r) => r.toLowerCase() == roomName.toLowerCase());
+    addLog('DELETE_ROOM', 'Menghapus ruang terapi: \'$roomName\'');
+    _persist();
+  }
+
+  // --- COMPLETED PROGRAM HELPERS ---
+  Set<String> getChildCompletedPrograms(String childName, {String? excludeNotulenId}) {
+    final completedSet = <String>{};
+    final childNotulens = _notulens.where((n) {
+      if (excludeNotulenId != null && n.id == excludeNotulenId) return false;
+      return n.childName.toLowerCase() == childName.toLowerCase();
+    });
+
+    for (var n in childNotulens) {
+      final statuses = n.status;
+      for (var pName in n.programsSelected) {
+        final cleanProgName = resolveProgramName(pName);
+        final statusVal = statuses[pName] ?? statuses[cleanProgName];
+        if (statusVal == 'tuntas' || statusVal == 'S' || statusVal == 'K') {
+          completedSet.add(pName);
+          completedSet.add(cleanProgName);
+        }
+      }
+    }
+    return completedSet;
   }
 
   // --- AUTHENTICATION ---
@@ -244,7 +296,6 @@ class LocalStore extends ChangeNotifier {
     _persist();
     SupabaseService.instance.syncToCloud('users', user.toJson());
 
-    // Also add to bundas list if role is staf
     if (user.role == 'staf') {
       final bundaName = user.name;
       if (!_bundas.any((b) => b.name.toLowerCase() == bundaName.toLowerCase())) {
@@ -303,12 +354,22 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.deleteFromCloud('programs', id);
   }
 
-  // --- NOTULEN CRUD ---
+  // --- NOTULEN CRUD & EDIT ---
   void addNotulen(NotulenModel notulen) {
     _notulens.insert(0, notulen);
     addLog('ADD_NOTULEN', 'Bunda ${notulen.notulen} menginput notulen harian untuk ${notulen.childName} (${notulen.room})');
     _persist();
     SupabaseService.instance.syncToCloud('notulens', notulen.toJson());
+  }
+
+  void updateNotulen(NotulenModel notulen) {
+    final idx = _notulens.indexWhere((n) => n.id == notulen.id);
+    if (idx != -1) {
+      _notulens[idx] = notulen;
+      addLog('UPDATE_NOTULEN', 'Memperbarui notulen harian ${notulen.childName} (${notulen.date})');
+      _persist();
+      SupabaseService.instance.syncToCloud('notulens', notulen.toJson());
+    }
   }
 
   void deleteNotulen(String id) {
