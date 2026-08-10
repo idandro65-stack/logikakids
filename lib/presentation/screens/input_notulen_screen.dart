@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/notulen_model.dart';
 import '../../data/models/child_model.dart';
+import '../../data/models/program_model.dart';
 
 class InputNotulenScreen extends StatefulWidget {
   final NotulenModel? editNotulen;
@@ -39,6 +40,12 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       _selectedRooms = n.room.split(';').map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
       _selectedPrograms.addAll(n.programsSelected);
       _statusMap.addAll(n.status);
+
+      n.pointsAchieved.forEach((k, v) {
+        if (v is List) {
+          _pointsMap[k] = v.map((e) => (e as num).toInt()).toList();
+        }
+      });
       _notesController.text = n.notes;
     } else {
       _dateController = TextEditingController(
@@ -113,7 +120,12 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       filteredChildren = filteredChildren.where((c) => c.name.toLowerCase().contains(q)).toList();
     }
 
-    // Get Completed Programs for Selected Child to disable them!
+    // Get Past Achieved Points per program for the selected child to LOCK achieved indicators!
+    final pastAchievedPointsMap = _selectedChild != null
+        ? store.getChildPastAchievedPoints(_selectedChild!, excludeNotulenId: widget.editNotulen?.id)
+        : <String, Set<int>>{};
+
+    // Completed Programs Set
     final completedSet = _selectedChild != null
         ? store.getChildCompletedPrograms(_selectedChild!, excludeNotulenId: widget.editNotulen?.id)
         : <String>{};
@@ -186,7 +198,11 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                   child: Text('${c.name} (${c.category.toUpperCase()})'),
                 );
               }).toList(),
-              onChanged: (val) => setState(() => _selectedChild = val),
+              onChanged: (val) {
+                setState(() {
+                  _selectedChild = val;
+                });
+              },
             ),
             const SizedBox(height: 14),
 
@@ -226,7 +242,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 4. Multi-Select Programs (With Completed Disabling!)
+            // 4. Multi-Select Programs
             const Text(
               'Pilih Program Terapi (Dapat Dicentang Banyak):',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -243,7 +259,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                 final isChecked = _selectedPrograms.contains(prog.programName);
 
                 return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 12),
                   color: isCompleted ? Colors.grey.shade100 : null,
                   child: Column(
                     children: [
@@ -275,11 +291,11 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                             ],
                           ],
                         ),
-                        subtitle: Text('${prog.room} | ${prog.indicators.length} Indikator Point', style: const TextStyle(fontSize: 11)),
+                        subtitle: Text('${prog.room} | ${prog.indicators.length} Indikator Checkpoint', style: const TextStyle(fontSize: 11)),
                         value: isChecked,
                         activeColor: const Color(0xFFF43F5E),
                         onChanged: isCompleted
-                            ? null // Disabled if already completed!
+                            ? null
                             : (val) {
                                 setState(() {
                                   if (val == true) {
@@ -292,29 +308,11 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                               },
                       ),
 
-                      // Status Selector if Checked
-                      if (isChecked)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Status Hasil Program:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  _buildStatusChip(prog.programName, 'S', 'Sudah (S)', Colors.green),
-                                  const SizedBox(width: 4),
-                                  _buildStatusChip(prog.programName, 'BS', 'Belum (BS)', Colors.orange),
-                                  const SizedBox(width: 4),
-                                  _buildStatusChip(prog.programName, 'TS', 'Tidak (TS)', Colors.red),
-                                  const SizedBox(width: 4),
-                                  _buildStatusChip(prog.programName, 'K', 'Konsisten (K)', Colors.teal),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                      // Checkpoint Indicators List if Program Selected (WITH LOCKED INDICATORS FOR PAST ACHIEVED!)
+                      if (isChecked) ...[
+                        const Divider(height: 1),
+                        _buildIndicatorChecklist(prog, pastAchievedPointsMap),
+                      ],
                     ],
                   ),
                 );
@@ -378,27 +376,96 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     );
   }
 
-  Widget _buildStatusChip(String progName, String val, String label, Color color) {
-    final isSelected = (_statusMap[progName] ?? 'S') == val;
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _statusMap[progName] = val),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? color : color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(6),
+  Widget _buildIndicatorChecklist(ProgramModel prog, Map<String, Set<int>> pastAchievedMap) {
+    final progKey = prog.programName;
+    final pastAchieved = pastAchievedMap[prog.id] ?? pastAchievedMap[progKey] ?? <int>{};
+    final currentSessionPoints = _pointsMap[progKey] ?? <int>[];
+
+    final targetPoints = prog.targetPoints > 0 ? prog.targetPoints : 10;
+    final indicatorsList = prog.indicators;
+
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Checkpoints Indikator (Point Pencapaian):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+              Text('${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai', style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+            ],
           ),
-          child: Text(
-            val,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: isSelected ? Colors.white : color,
-            ),
-          ),
-        ),
+          const SizedBox(height: 8),
+
+          // Render 10 Checkpoints / Indicators
+          ...List.generate(targetPoints, (i) {
+            final pointNum = i + 1; // 1-based indicator number
+            final isPastLocked = pastAchieved.contains(pointNum) || pastAchieved.contains(i);
+            final isCurrentChecked = currentSessionPoints.contains(pointNum) || currentSessionPoints.contains(i);
+
+            final labelText = (indicatorsList.length > i) ? '$pointNum. ${indicatorsList[i]}' : 'Poin Checkpoint $pointNum';
+
+            if (isPastLocked) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.checkSquare, size: 14, color: Colors.green),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        labelText,
+                        style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text('✓ Tercapai (Sesi Lalu)', style: TextStyle(fontSize: 9, color: Colors.green, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(labelText, style: const TextStyle(fontSize: 12)),
+              value: isCurrentChecked,
+              activeColor: const Color(0xFFF43F5E),
+              onChanged: (val) {
+                setState(() {
+                  if (!_pointsMap.containsKey(progKey)) {
+                    _pointsMap[progKey] = [];
+                  }
+                  if (val == true) {
+                    if (!_pointsMap[progKey]!.contains(pointNum)) {
+                      _pointsMap[progKey]!.add(pointNum);
+                    }
+                  } else {
+                    _pointsMap[progKey]!.remove(pointNum);
+                    _pointsMap[progKey]!.remove(i);
+                  }
+
+                  // Auto calculate Status
+                  final totalNow = _pointsMap[progKey]!.length + pastAchieved.length;
+                  _statusMap[progKey] = (totalNow >= targetPoints) ? 'S' : 'BS';
+                });
+              },
+            );
+          }),
+        ],
       ),
     );
   }

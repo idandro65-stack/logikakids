@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app_config.dart';
@@ -40,27 +41,57 @@ class SupabaseService {
 
   SupabaseClient? get client => _client;
 
-  // Push record addition/update to Supabase Cloud
+  // Push record addition/update to Supabase Cloud with guaranteed REST fallback
   Future<void> syncToCloud(String table, Map<String, dynamic> payload) async {
-    if (_client == null) return;
+    final onConflict = table == 'users' ? 'username' : 'id';
+    if (_client != null) {
+      try {
+        await _client!.from(table).upsert(payload, onConflict: onConflict);
+        debugPrint('Cloud SDK sync success for $table');
+        return;
+      } catch (e) {
+        debugPrint('Cloud SDK notice for $table: $e, executing HTTP fallback...');
+      }
+    }
+
+    // Direct HTTP REST Fallback to Supabase Endpoint
     try {
-      final onConflict = table == 'users' ? 'username' : 'id';
-      await _client!.from(table).upsert(payload, onConflict: onConflict);
-      debugPrint('Cloud sync success for $table');
+      final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table');
+      final request = await HttpClient().postUrl(uri);
+      request.headers.set('apikey', AppConfig.supabaseAnonKey);
+      request.headers.set('Authorization', 'Bearer ${AppConfig.supabaseAnonKey}');
+      request.headers.set('Content-Type', 'application/json');
+      request.headers.set('Prefer', 'resolution=merge-duplicates');
+      request.write(jsonEncode(payload));
+      final response = await request.close();
+      debugPrint('Cloud HTTP fallback status for $table: ${response.statusCode}');
     } catch (e) {
-      debugPrint('Cloud sync notice for $table: $e');
+      debugPrint('Cloud HTTP fallback notice for $table: $e');
     }
   }
 
-  // Push record deletion to Supabase Cloud
+  // Push record deletion to Supabase Cloud with guaranteed REST fallback
   Future<void> deleteFromCloud(String table, String id) async {
-    if (_client == null) return;
+    final col = table == 'users' ? 'username' : 'id';
+    if (_client != null) {
+      try {
+        await _client!.from(table).delete().eq(col, id);
+        debugPrint('Cloud SDK delete success for $table: $id');
+        return;
+      } catch (e) {
+        debugPrint('Cloud SDK delete notice for $table: $e');
+      }
+    }
+
     try {
-      final col = table == 'users' ? 'username' : 'id';
-      await _client!.from(table).delete().eq(col, id);
-      debugPrint('Cloud delete success for $table: $id');
+      final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?$col=eq.$id');
+      final request = await HttpClient().deleteUrl(uri);
+      request.headers.set('apikey', AppConfig.supabaseAnonKey);
+      request.headers.set('Authorization', 'Bearer ${AppConfig.supabaseAnonKey}');
+      final response = await request.close();
+      debugPrint('Cloud HTTP delete status for $table: ${response.statusCode}');
     } catch (e) {
-      debugPrint('Cloud delete notice for $table: $e');
+      debugPrint('Cloud HTTP delete notice for $table: $e');
     }
   }
 

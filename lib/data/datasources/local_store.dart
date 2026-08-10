@@ -182,6 +182,34 @@ class LocalStore extends ChangeNotifier {
     return completedSet;
   }
 
+  Map<String, Set<int>> getChildPastAchievedPoints(String childName, {String? excludeNotulenId}) {
+    final Map<String, Set<int>> map = {};
+    final childNotulens = _notulens.where((n) {
+      if (excludeNotulenId != null && n.id == excludeNotulenId) return false;
+      return n.childName.toLowerCase() == childName.toLowerCase();
+    });
+
+    for (var n in childNotulens) {
+      final points = n.pointsAchieved;
+      points.forEach((progKey, indices) {
+        final cleanKey = resolveProgramName(progKey);
+        if (!map.containsKey(progKey)) map[progKey] = <int>{};
+        if (!map.containsKey(cleanKey)) map[cleanKey] = <int>{};
+
+        if (indices is List) {
+          for (var idx in indices) {
+            if (idx is num) {
+              final val = idx.toInt();
+              map[progKey]!.add(val);
+              map[cleanKey]!.add(val);
+            }
+          }
+        }
+      });
+    }
+    return map;
+  }
+
   // --- AUTHENTICATION ---
   bool login(String username, String password) {
     final cleanUser = username.trim().toLowerCase().replaceAll('bunda.', '').replaceAll(' ', '');

@@ -4,6 +4,7 @@ import '../../core/services/pdf_service.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/child_model.dart';
 import '../../data/models/notulen_model.dart';
+import '../../data/models/program_model.dart';
 import 'input_notulen_screen.dart';
 
 class RiwayatScreen extends StatefulWidget {
@@ -17,194 +18,6 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _categoryFilter = 'all';
   String _roomFilter = 'all';
-
-  void _showSessionDetailModal(BuildContext context, NotulenModel n) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom +
-                MediaQuery.of(ctx).padding.bottom +
-                20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(LucideIcons.clipboardCheck, color: Color(0xFFF43F5E)),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Sesi: ${n.childName}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFBE123C),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(n.date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Ruang Terapi: ${n.room} | Terapis: Bunda ${n.notulen}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                const Divider(height: 20),
-
-                // Special Notes Badge
-                if (n.notes.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF1F2),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFECDD3)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(LucideIcons.pin, size: 16, color: Color(0xFFBE123C)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Catatan Perkembangan: "${n.notes}"',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFBE123C),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Program & Status List
-                const Text(
-                  'Program Terapi yang Dijalankan:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const SizedBox(height: 8),
-                if (n.programsSelected.isEmpty)
-                  const Text('Tidak ada rincian program spesifik', style: TextStyle(fontSize: 12, color: Colors.grey))
-                else
-                  ...n.programsSelected.map((progId) {
-                    final cleanProgName = LocalStore.instance.resolveProgramName(progId);
-                    final statusVal = n.status[progId] ?? n.status[cleanProgName] ?? 'S';
-                    final statusLabel = statusVal == 'S'
-                        ? 'Sudah (S)'
-                        : statusVal == 'BS'
-                            ? 'Belum Sempurna (BS)'
-                            : statusVal == 'TS'
-                                ? 'Tidak Selesai (TS)'
-                                : 'Konsisten (K)';
-
-                    final statusColor = statusVal == 'S' || statusVal == 'K'
-                        ? Colors.green
-                        : statusVal == 'BS'
-                            ? Colors.orange
-                            : Colors.red;
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                cleanProgName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                              ),
-                            ),
-                            Chip(
-                              label: Text(statusLabel),
-                              backgroundColor: statusColor.withOpacity(0.1),
-                              labelStyle: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: statusColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-
-                const SizedBox(height: 16),
-                // Actions PDF & Share & Edit & Delete
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          PdfService.generateAndPrintRaport(context, n.childName);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF43F5E),
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: const Icon(LucideIcons.fileText, size: 14),
-                        label: const Text('Raport PDF', style: TextStyle(fontSize: 11)),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(LucideIcons.edit2, color: Colors.blue),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => InputNotulenScreen(editNotulen: n),
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(LucideIcons.send, color: Colors.green),
-                      onPressed: () {
-                        PdfService.shareToWhatsApp(context, n.childName);
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(LucideIcons.trash2, color: Colors.red),
-                      onPressed: () {
-                        LocalStore.instance.deleteNotulen(n.id);
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Notulen sesi berhasil dihapus')),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -315,7 +128,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Riwayat Cards List
+                // Riwayat Cards List (100% Matching Web Layout!)
                 Expanded(
                   child: childNames.isEmpty
                       ? const Center(
@@ -329,153 +142,99 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                           itemBuilder: (ctx, idx) {
                             final childName = childNames[idx];
                             final childNotulens = groupedByChild[childName]!;
+                            childNotulens.sort((a, b) => b.date.compareTo(a.date));
+
                             final childObj = store.children.firstWhere(
                               (c) => c.name == childName,
                               orElse: () => ChildModel(id: '', name: childName, category: 'reguler'),
                             );
 
-                            final latestNoteWithText = childNotulens.firstWhere(
-                              (n) => n.notes.trim().isNotEmpty,
-                              orElse: () => NotulenModel(id: '', date: '', childName: '', notulen: '', room: '', programsSelected: [], pointsAchieved: {}, status: {}, notes: ''),
-                            );
-
                             return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: const BorderSide(color: Color(0xFFFECDD3)),
+                              ),
                               child: Padding(
                                 padding: const EdgeInsets.all(14.0),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Header Child Name & Raport Button
+                                    // Child Header Banner
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Row(
                                           children: [
-                                            const Icon(LucideIcons.user, color: Color(0xFFF43F5E)),
+                                            const Icon(LucideIcons.user, color: Color(0xFFF43F5E), size: 20),
                                             const SizedBox(width: 6),
                                             Text(
                                               childName,
                                               style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 15,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 16,
                                               ),
                                             ),
-                                            const SizedBox(width: 6),
-                                            Chip(
-                                              label: Text(childObj.category.toUpperCase()),
-                                              backgroundColor: childObj.category == 'intensif'
-                                                  ? Colors.blue.shade50
-                                                  : Colors.teal.shade50,
-                                              labelStyle: TextStyle(
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.bold,
-                                                color: childObj.category == 'intensif' ? Colors.blue : Colors.teal,
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: childObj.category == 'intensif'
+                                                    ? Colors.blue.shade100
+                                                    : Colors.teal.shade100,
+                                                borderRadius: BorderRadius.circular(99),
                                               ),
-                                              padding: EdgeInsets.zero,
+                                              child: Text(
+                                                childObj.category.toUpperCase(),
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: childObj.category == 'intensif'
+                                                      ? Colors.blue.shade900
+                                                      : Colors.teal.shade900,
+                                                ),
+                                              ),
                                             ),
                                           ],
                                         ),
-                                        ElevatedButton.icon(
-                                          onPressed: () {
-                                            PdfService.generateAndPrintRaport(context, childName);
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFFF43F5E),
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          ),
-                                          icon: const Icon(LucideIcons.fileText, size: 14),
-                                          label: const Text('Raport PDF', style: TextStyle(fontSize: 10)),
+                                        Row(
+                                          children: [
+                                            ElevatedButton.icon(
+                                              onPressed: () {
+                                                PdfService.generateAndPrintRaport(context, childName);
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFFF43F5E),
+                                                foregroundColor: Colors.white,
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                minimumSize: Size.zero,
+                                              ),
+                                              icon: const Icon(LucideIcons.fileText, size: 12),
+                                              label: const Text('Raport PDF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            IconButton(
+                                              constraints: const BoxConstraints(),
+                                              padding: const EdgeInsets.all(4),
+                                              icon: const Icon(LucideIcons.send, color: Colors.green, size: 18),
+                                              onPressed: () {
+                                                PdfService.shareToWhatsApp(context, childName);
+                                              },
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '📋 Riwayat Sesi Terapi: ${childNotulens.length} Sesi Tercatat',
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                                    ),
+                                    const Divider(height: 16),
 
-                                    // Special Notes Badge if available
-                                    if (latestNoteWithText.notes.isNotEmpty)
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 6),
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFF1F2),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: const Color(0xFFFECDD3)),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(LucideIcons.pin, size: 12, color: Color(0xFFBE123C)),
-                                            const SizedBox(width: 4),
-                                            Expanded(
-                                              child: Text(
-                                                'Catatan: "${latestNoteWithText.notes}"',
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  color: Color(0xFFBE123C),
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-
-                                    const SizedBox(height: 10),
-                                    // Session Items List with EDIT Button!
-                                    ...childNotulens.take(3).map((n) {
-                                      return Container(
-                                        margin: const EdgeInsets.only(bottom: 6),
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade100,
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: InkWell(
-                                                onTap: () => _showSessionDetailModal(context, n),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(LucideIcons.calendar, size: 12, color: Colors.grey),
-                                                    const SizedBox(width: 4),
-                                                    Expanded(
-                                                      child: Text(
-                                                        '${n.date} (${n.room})',
-                                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                                        overflow: TextOverflow.ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  'Bunda ${n.notulen}',
-                                                  style: const TextStyle(fontSize: 11, color: Color(0xFFBE123C)),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                // EDIT BUTTON!
-                                                IconButton(
-                                                  constraints: const BoxConstraints(),
-                                                  padding: const EdgeInsets.all(4),
-                                                  icon: const Icon(LucideIcons.edit2, size: 14, color: Colors.blue),
-                                                  onPressed: () {
-                                                    Navigator.of(context).push(
-                                                      MaterialPageRoute(
-                                                        builder: (_) => InputNotulenScreen(editNotulen: n),
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      );
+                                    // Session Items Cards
+                                    ...childNotulens.map((n) {
+                                      return _buildSessionCard(context, n, store);
                                     }),
                                   ],
                                 ),
@@ -489,6 +248,248 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSessionCard(BuildContext context, NotulenModel n, LocalStore store) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFECDD3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Line: Date | Bunda | Edit | Hapus
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(LucideIcons.calendar, size: 14, color: Colors.redAccent),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${n.date}  |  Bunda: ${n.notulen}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => InputNotulenScreen(editNotulen: n),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(LucideIcons.edit2, size: 10),
+                      label: const Text('Edit', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 4),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        store.deleteNotulen(n.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Notulen sesi berhasil dihapus')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(LucideIcons.trash2, size: 10),
+                      label: const Text('Hapus', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFFECDD3)),
+
+          // Session Content
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Room Title
+                Text(
+                  n.room,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFBE123C),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Special Notes Badge if available
+                if (n.notes.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFFECDD3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.pin, size: 12, color: Color(0xFFBE123C)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Catatan Perkembangan: "${n.notes}"',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFFBE123C), fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Program Items Details (Matching Web Screenshot 100%)
+                ...n.programsSelected.map((progId) {
+                  final cleanProgName = store.resolveProgramName(progId);
+                  final progObj = store.programs.firstWhere(
+                    (p) => p.id == progId || p.programName == progId,
+                    orElse: () => ProgramModel(id: '', room: '', programName: cleanProgName, indicators: [], targetPoints: 10),
+                  );
+
+                  final totalTarget = progObj.targetPoints > 0
+                      ? progObj.targetPoints
+                      : (progObj.indicators.isNotEmpty ? progObj.indicators.length : 10);
+
+                  final statusVal = n.status[progId] ?? n.status[cleanProgName] ?? 'S';
+                  final isTuntas = statusVal == 'tuntas' || statusVal == 'S' || statusVal == 'K';
+
+                  final statusLabel = isTuntas
+                      ? 'Tuntas'
+                      : (statusVal == 'BS' ? 'Berlangsung' : (statusVal == 'TS' ? 'Tidak Selesai' : 'Berlangsung'));
+
+                  final statusColor = isTuntas ? Colors.green : Colors.orange;
+
+                  // Calculate Achieved Points
+                  final rawPoints = n.pointsAchieved[progId] ?? n.pointsAchieved[cleanProgName];
+                  List<int> achievedIndices = [];
+                  if (rawPoints != null && rawPoints is List) {
+                    achievedIndices = (rawPoints as List).map((e) => (e as num).toInt()).toList();
+                  }
+
+                  List<int> tercapaiNumbers = [];
+                  List<int> belumNumbers = [];
+
+                  for (int i = 1; i <= totalTarget; i++) {
+                    // Check if 0-based i-1 or 1-based i is in achievedIndices
+                    if (achievedIndices.contains(i - 1) || achievedIndices.contains(i)) {
+                      tercapaiNumbers.add(i);
+                    } else {
+                      belumNumbers.add(i);
+                    }
+                  }
+
+                  final tercapaiStr = tercapaiNumbers.isNotEmpty ? tercapaiNumbers.join(', ') : '—';
+                  final belumStr = belumNumbers.isNotEmpty ? belumNumbers.join(', ') : '—';
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Program Name & Status Badge
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              cleanProgName,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isTuntas ? LucideIcons.checkCircle2 : LucideIcons.rotateCcw,
+                                    size: 10,
+                                    color: statusColor,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    statusLabel,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+
+                        // Checkpoint Tercapai Line
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('✓ Tercapai: ', style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+                            Expanded(
+                              child: Text(
+                                tercapaiStr,
+                                style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Checkpoint Belum Line
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('✕ Belum: ', style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)),
+                            Expanded(
+                              child: Text(
+                                belumStr,
+                                style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
