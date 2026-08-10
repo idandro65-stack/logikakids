@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/notulen_model.dart';
 
 class InputNotulenScreen extends StatefulWidget {
-  const InputNotulenScreen({Key? key}) : super(key: key);
+  const InputNotulenScreen({super.key});
 
   @override
   State<InputNotulenScreen> createState() => _InputNotulenScreenState();
@@ -81,7 +82,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
               controller: _dateController,
               decoration: const InputDecoration(
                 labelText: 'Tanggal Sesi Terapi',
-                prefixIcon: Icon(Icons.calendar_today),
+                prefixIcon: Icon(LucideIcons.calendar),
                 border: OutlineInputBorder(),
               ),
               readOnly: true,
@@ -101,10 +102,10 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
 
             // Select Child
             DropdownButtonFormField<String>(
-              value: _selectedChild,
+              initialValue: _selectedChild,
               decoration: const InputDecoration(
                 labelText: 'Pilih Nama Anak',
-                prefixIcon: Icon(Icons.child_care),
+                prefixIcon: Icon(LucideIcons.user),
                 border: OutlineInputBorder(),
               ),
               items: children.map((c) {
@@ -151,7 +152,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
               decoration: const InputDecoration(
                 labelText: 'Catatan Khusus Perkembangan Anak',
                 hintText: 'Tuliskan perkembangan penting sesi hari ini...',
-                prefixIcon: Icon(Icons.edit_note),
+                prefixIcon: Icon(LucideIcons.fileEdit),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -166,7 +167,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFF43F5E),
                 ),
-                icon: const Icon(Icons.save, color: Colors.white),
+                icon: const Icon(LucideIcons.save, color: Colors.white),
                 label: const Text(
                   'Simpan Notulen Sesi',
                   style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),

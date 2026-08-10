@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/services/pdf_service.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/child_model.dart';
 import '../../data/models/notulen_model.dart';
 
 class RiwayatScreen extends StatefulWidget {
-  const RiwayatScreen({Key? key}) : super(key: key);
+  const RiwayatScreen({super.key});
 
   @override
   State<RiwayatScreen> createState() => _RiwayatScreenState();
@@ -45,7 +46,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   onChanged: (val) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'Filter Program Terapi (Vestibular, Gunting, dll)...',
-                    prefixIcon: const Icon(Icons.filter_list),
+                    prefixIcon: const Icon(LucideIcons.filter),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -91,7 +92,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                       children: [
                                         Row(
                                           children: [
-                                            const Icon(Icons.account_circle, color: Color(0xFFF43F5E)),
+                                            const Icon(LucideIcons.user, color: Color(0xFFF43F5E)),
                                             const SizedBox(width: 6),
                                             Text(
                                               childName,
@@ -124,7 +125,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                             foregroundColor: Colors.white,
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                           ),
-                                          icon: const Icon(Icons.picture_as_pdf, size: 14),
+                                          icon: const Icon(LucideIcons.fileText, size: 14),
                                           label: const Text('Raport PDF', style: TextStyle(fontSize: 10)),
                                         ),
                                       ],
@@ -142,7 +143,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                         ),
                                         child: Row(
                                           children: [
-                                            const Icon(Icons.push_pin, size: 12, color: Color(0xFFBE123C)),
+                                            const Icon(LucideIcons.pin, size: 12, color: Color(0xFFBE123C)),
                                             const SizedBox(width: 4),
                                             Expanded(
                                               child: Text(
@@ -171,7 +172,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                         children: [
                                           const Row(
                                             children: [
-                                              Icon(Icons.assignment_turned_in, size: 14, color: Colors.grey),
+                                              Icon(LucideIcons.clipboardCheck, size: 14, color: Colors.grey),
                                               SizedBox(width: 4),
                                               Text('Riwayat Sesi Terapi:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                             ],

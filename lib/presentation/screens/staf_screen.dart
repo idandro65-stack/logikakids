@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../data/datasources/local_store.dart';
 
 class StafScreen extends StatelessWidget {
-  const StafScreen({Key? key}) : super(key: key);
+  const StafScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +38,7 @@ class StafScreen extends StatelessWidget {
                   leading: CircleAvatar(
                     backgroundColor: isStaffAdmin ? const Color(0xFFFFF1F2) : Colors.blue.shade50,
                     child: Icon(
-                      isStaffAdmin ? Icons.admin_panel_settings : Icons.person,
+                      isStaffAdmin ? LucideIcons.shieldCheck : LucideIcons.user,
                       color: isStaffAdmin ? const Color(0xFFF43F5E) : Colors.blue,
                     ),
                   ),

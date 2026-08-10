@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import 'dashboard_screen.dart';
@@ -9,7 +10,7 @@ import 'staf_screen.dart';
 import 'settings_dialog.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({Key? key}) : super(key: key);
+  const MainNavigationScreen({super.key});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -37,29 +38,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
         final List<BottomNavigationBarItem> navItems = [
           const BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
+            icon: Icon(LucideIcons.layoutDashboard),
+            activeIcon: Icon(LucideIcons.layoutDashboard),
             label: 'Beranda',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.child_care_outlined),
-            activeIcon: Icon(Icons.child_care),
+            icon: Icon(LucideIcons.user),
+            activeIcon: Icon(LucideIcons.user),
             label: 'Anak',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            activeIcon: Icon(Icons.assignment),
+            icon: Icon(LucideIcons.clipboardList),
+            activeIcon: Icon(LucideIcons.clipboardList),
             label: 'Program',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.history_outlined),
-            activeIcon: Icon(Icons.history),
+            icon: Icon(LucideIcons.history),
+            activeIcon: Icon(LucideIcons.history),
             label: 'Riwayat',
           ),
           if (isAdmin)
             const BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
+              icon: Icon(LucideIcons.users),
+              activeIcon: Icon(LucideIcons.users),
               label: 'Staf',
             ),
         ];
@@ -77,7 +78,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 const CircleAvatar(
                   backgroundColor: Color(0xFFF43F5E),
                   radius: 16,
-                  child: Icon(Icons.medical_services, size: 18, color: Colors.white),
+                  child: Icon(LucideIcons.heartHandshake, size: 18, color: Colors.white),
                 ),
                 const SizedBox(width: 8),
                 Column(
@@ -103,7 +104,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.settings, color: Color(0xFFBE123C)),
+                icon: const Icon(LucideIcons.settings, color: Color(0xFFBE123C)),
                 onPressed: () => SettingsDialog.show(context),
               ),
             ],

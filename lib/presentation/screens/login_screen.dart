@@ -1,32 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import 'main_navigation_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _userController = TextEditingController(text: 'eka');
-  final _pwController = TextEditingController(text: '123456');
+  final _userController = TextEditingController();
+  final _pwController = TextEditingController();
+  bool _isLoading = false;
 
-  void _handleLogin() {
-    final success = LocalStore.instance.login(
-      _userController.text,
-      _pwController.text,
-    );
+  void _handleLogin() async {
+    final username = _userController.text.trim();
+    final password = _pwController.text.trim();
 
-    if (success || true) {
-      if (!success) {
-        // Fallback default demo account
-        LocalStore.instance.login('bunda.eka', '123456');
-      }
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Harap isi username dan password!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // Strict Authentication Check against database
+    final success = LocalStore.instance.login(username, password);
+
+    setState(() => _isLoading = false);
+
+    if (success) {
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Username atau password salah!'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -52,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     radius: 36,
                     backgroundColor: Color(0xFFF43F5E),
                     child: Icon(
-                      Icons.medical_services_rounded,
+                      LucideIcons.heartHandshake,
                       size: 40,
                       color: Colors.white,
                     ),
@@ -79,7 +101,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _userController,
                     decoration: InputDecoration(
                       labelText: 'Username / Akun Staf',
-                      prefixIcon: const Icon(Icons.person_outline),
+                      hintText: 'Contoh: eka atau admin',
+                      prefixIcon: const Icon(LucideIcons.user),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -91,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     obscureText: true,
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(LucideIcons.lock),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -102,17 +125,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton.icon(
-                      onPressed: _handleLogin,
+                      onPressed: _isLoading ? null : _handleLogin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFF43F5E),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      icon: const Icon(Icons.login, color: Colors.white),
-                      label: const Text(
-                        'Masuk ke Aplikasi',
-                        style: TextStyle(
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(LucideIcons.logIn, color: Colors.white),
+                      label: Text(
+                        _isLoading ? 'Memeriksa Login...' : 'Masuk ke Aplikasi',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,

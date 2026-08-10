@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 
 class ProgramScreen extends StatelessWidget {
-  const ProgramScreen({Key? key}) : super(key: key);
+  const ProgramScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +30,7 @@ class ProgramScreen extends StatelessWidget {
                 child: ExpansionTile(
                   leading: const CircleAvatar(
                     backgroundColor: Color(0xFFFFF1F2),
-                    child: Icon(Icons.assignment, color: Color(0xFFF43F5E)),
+                    child: Icon(LucideIcons.clipboardList, color: Color(0xFFF43F5E)),
                   ),
                   title: Text(
                     roomName,

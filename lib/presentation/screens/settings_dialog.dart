@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../data/datasources/local_store.dart';
 import 'login_screen.dart';
 
@@ -66,7 +67,7 @@ class SettingsDialog {
               // Admin Audit Log Option (Only for Admin)
               if (isAdmin)
                 ListTile(
-                  leading: const Icon(Icons.history_edu, color: Color(0xFFF43F5E)),
+                  leading: const Icon(LucideIcons.scrollText, color: Color(0xFFF43F5E)),
                   title: const Text('Log Aktivitas Klinik (Audit Trail)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   subtitle: const Text('Rekam jejak tindakan staf & admin', style: TextStyle(fontSize: 10)),
                   onTap: () {
@@ -78,7 +79,7 @@ class SettingsDialog {
               // Reset Data (STRICTLY ADMIN ONLY)
               if (isAdmin)
                 ListTile(
-                  leading: const Icon(Icons.restore, color: Colors.orange),
+                  leading: const Icon(LucideIcons.rotateCcw, color: Colors.orange),
                   title: const Text('Reset Data ke Demo Awal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   subtitle: const Text('Hapus notulen uji coba (Khusus Admin)', style: TextStyle(fontSize: 10)),
                   onTap: () {
@@ -91,7 +92,7 @@ class SettingsDialog {
 
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
+                leading: const Icon(LucideIcons.logOut, color: Colors.red),
                 title: const Text('Keluar / Logout Sesi Akun', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                 onTap: () {
                   store.logout();
@@ -125,7 +126,7 @@ class SettingsDialog {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.history, color: Color(0xFFF43F5E)),
+                  Icon(LucideIcons.history, color: Color(0xFFF43F5E)),
                   SizedBox(width: 8),
                   Text(
                     'Log Aktivitas Klinik (Audit Trail)',

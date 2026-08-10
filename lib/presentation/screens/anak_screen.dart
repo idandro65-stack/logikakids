@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../data/datasources/local_store.dart';
 import '../../data/models/child_model.dart';
 
 class AnakScreen extends StatefulWidget {
-  const AnakScreen({Key? key}) : super(key: key);
+  const AnakScreen({super.key});
 
   @override
   State<AnakScreen> createState() => _AnakScreenState();
@@ -11,7 +12,7 @@ class AnakScreen extends StatefulWidget {
 
 class _AnakScreenState extends State<AnakScreen> {
   String _categoryFilter = 'all';
-  String _sortBy = 'name-asc'; // 'name-asc', 'name-desc', 'newest', 'oldest'
+  String _sortBy = 'name-asc';
   String _searchQuery = '';
 
   void _showAddChildModal() {
@@ -51,7 +52,7 @@ class _AnakScreenState extends State<AnakScreen> {
                     controller: nameController,
                     decoration: const InputDecoration(
                       labelText: 'Nama Lengkap Anak',
-                      prefixIcon: Icon(Icons.child_care),
+                      prefixIcon: Icon(LucideIcons.user),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -98,7 +99,7 @@ class _AnakScreenState extends State<AnakScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFF43F5E),
                       ),
-                      icon: const Icon(Icons.check, color: Colors.white),
+                      icon: const Icon(LucideIcons.check, color: Colors.white),
                       label: const Text('Simpan Data Anak', style: TextStyle(color: Colors.white)),
                     ),
                   ),
@@ -145,7 +146,7 @@ class _AnakScreenState extends State<AnakScreen> {
           floatingActionButton: FloatingActionButton(
             onPressed: _showAddChildModal,
             backgroundColor: const Color(0xFFF43F5E),
-            child: const Icon(Icons.add, color: Colors.white),
+            child: const Icon(LucideIcons.plus, color: Colors.white),
           ),
           body: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -159,7 +160,7 @@ class _AnakScreenState extends State<AnakScreen> {
                         onChanged: (val) => setState(() => _searchQuery = val),
                         decoration: InputDecoration(
                           hintText: 'Cari nama anak...',
-                          prefixIcon: const Icon(Icons.search),
+                          prefixIcon: const Icon(LucideIcons.search),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -170,7 +171,7 @@ class _AnakScreenState extends State<AnakScreen> {
                     const SizedBox(width: 8),
                     DropdownButton<String>(
                       value: _sortBy,
-                      icon: const Icon(Icons.sort),
+                      icon: const Icon(LucideIcons.arrowDownUp),
                       onChanged: (val) => setState(() => _sortBy = val!),
                       items: const [
                         DropdownMenuItem(value: 'name-asc', child: Text('Abjad A-Z', style: TextStyle(fontSize: 12))),
@@ -215,7 +216,7 @@ class _AnakScreenState extends State<AnakScreen> {
                                 leading: CircleAvatar(
                                   backgroundColor: isIntensif ? Colors.blue.shade100 : Colors.teal.shade100,
                                   child: Icon(
-                                    Icons.person,
+                                    LucideIcons.user,
                                     color: isIntensif ? Colors.blue.shade800 : Colors.teal.shade800,
                                   ),
                                 ),
@@ -232,7 +233,7 @@ class _AnakScreenState extends State<AnakScreen> {
                                   ),
                                 ),
                                 trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  icon: const Icon(LucideIcons.trash2, color: Colors.red),
                                   onPressed: () {
                                     LocalStore.instance.deleteChild(child.id);
                                   },

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
 import 'input_notulen_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +81,7 @@ class DashboardScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            icon: const Icon(Icons.add_circle_outline),
+                            icon: const Icon(LucideIcons.plusCircle),
                             label: const Text(
                               'Input Notulen Baru',
                               style: TextStyle(fontWeight: FontWeight.bold),
@@ -155,7 +156,7 @@ class DashboardScreen extends StatelessWidget {
           children: [
             Row(
               children: const [
-                Icon(Icons.history, size: 18, color: Color(0xFFBE123C)),
+                Icon(LucideIcons.history, size: 18, color: Color(0xFFBE123C)),
                 SizedBox(width: 6),
                 Text(
                   'Log Aktivitas Terkini Klinik',
@@ -217,7 +218,7 @@ class DashboardScreen extends StatelessWidget {
               children: const [
                 Row(
                   children: [
-                    Icon(Icons.insights, size: 18, color: Color(0xFFF43F5E)),
+                    Icon(LucideIcons.barChart2, size: 18, color: Color(0xFFF43F5E)),
                     SizedBox(width: 6),
                     Text(
                       'Rekap Sesi Ruangan Bulan Ini',
