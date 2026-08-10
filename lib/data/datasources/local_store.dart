@@ -7,6 +7,7 @@ import '../models/program_model.dart';
 import '../models/bunda_model.dart';
 import '../models/user_model.dart';
 import '../models/log_model.dart';
+import '../initial_seed_data.dart';
 import 'supabase_service.dart';
 
 class LocalStore extends ChangeNotifier {
@@ -111,22 +112,22 @@ class LocalStore extends ChangeNotifier {
   }
 
   void _ensureDefaultData() {
-    if (_users.isEmpty) {
-      _users = [
-        UserModel(username: 'admin', password: 'admin123', name: 'Kepala Klinik Admin', role: 'admin'),
-        UserModel(username: 'bunda.ani', password: '123456', name: 'Ani', role: 'staf'),
-        UserModel(username: 'bunda.diana', password: '123456', name: 'Diana', role: 'staf'),
-        UserModel(username: 'bunda.eka', password: '123456', name: 'Eka', role: 'staf'),
-        UserModel(username: 'bunda.harista', password: '123456', name: 'Harista', role: 'staf'),
-        UserModel(username: 'bunda.ita', password: '123456', name: 'Ita', role: 'staf'),
-        UserModel(username: 'bunda.oza', password: '123456', name: 'Oza', role: 'staf'),
-        UserModel(username: 'bunda.rara', password: '123456', name: 'Rara', role: 'staf'),
-        UserModel(username: 'bunda.ririn', password: '123456', name: 'Ririn', role: 'staf'),
-        UserModel(username: 'bunda.titis', password: '123456', name: 'Titis', role: 'staf'),
-        UserModel(username: 'bunda.yuli', password: '123456', name: 'Yuli', role: 'staf'),
-      ];
-      _persist();
+    if (_children.isEmpty) {
+      _children = InitialSeedData.children;
     }
+    if (_notulens.isEmpty) {
+      _notulens = InitialSeedData.notulens;
+    }
+    if (_programs.isEmpty) {
+      _programs = InitialSeedData.programs;
+    }
+    if (_bundas.isEmpty) {
+      _bundas = InitialSeedData.bundas;
+    }
+    if (_users.isEmpty) {
+      _users = InitialSeedData.users;
+    }
+    _persist();
   }
 
   // --- AUTHENTICATION ---

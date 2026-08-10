@@ -27,12 +27,12 @@ class SupabaseService {
       _client = Supabase.instance.client;
       debugPrint('Supabase Cloud SDK initialized successfully.');
 
-      // Start periodic cloud fetch every 10 seconds
+      // Immediate fetch on init
+      await fetchCloudData();
+
+      // Periodic cloud fetch every 10 seconds
       _autoSyncTimer?.cancel();
       _autoSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) => fetchCloudData());
-      
-      // Trigger initial fetch
-      fetchCloudData();
     } catch (e) {
       debugPrint('Supabase init notice: $e');
     }
@@ -80,42 +80,75 @@ class SupabaseService {
     }
   }
 
-  // Fetch all Cloud Tables and update Local Store
+  // Fetch all Cloud Tables independently and update Local Store
   Future<void> fetchCloudData() async {
     if (_client == null) return;
+
+    // 1. Children Table
     try {
       final resChildren = await _client!.from('children').select('*');
-      final resNotulens = await _client!.from('notulens').select('*');
-      final resPrograms = await _client!.from('programs').select('*');
-      final resBundas = await _client!.from('bundas').select('*');
-      final resUsers = await _client!.from('users').select('*');
-
       if (resChildren.isNotEmpty) {
-        final list = (resChildren as List).map((e) => ChildModel.fromJson(e)).toList();
+        final list = (resChildren as List)
+            .map((e) => ChildModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
         LocalStore.instance.saveChildren(list);
+        debugPrint('Fetched ${list.length} children from Supabase Cloud');
       }
+    } catch (e) {
+      debugPrint('Notice fetching children: $e');
+    }
 
+    // 2. Notulens Table
+    try {
+      final resNotulens = await _client!.from('notulens').select('*');
       if (resNotulens.isNotEmpty) {
-        final list = (resNotulens as List).map((e) => NotulenModel.fromJson(e)).toList();
+        final list = (resNotulens as List)
+            .map((e) => NotulenModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
         LocalStore.instance.saveNotulens(list);
+        debugPrint('Fetched ${list.length} notulens from Supabase Cloud');
       }
+    } catch (e) {
+      debugPrint('Notice fetching notulens: $e');
+    }
 
+    // 3. Programs Table
+    try {
+      final resPrograms = await _client!.from('programs').select('*');
       if (resPrograms.isNotEmpty) {
-        final list = (resPrograms as List).map((e) => ProgramModel.fromJson(e)).toList();
+        final list = (resPrograms as List)
+            .map((e) => ProgramModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
         LocalStore.instance.savePrograms(list);
+        debugPrint('Fetched ${list.length} programs from Supabase Cloud');
       }
+    } catch (e) {
+      debugPrint('Notice fetching programs: $e');
+    }
 
+    // 4. Bundas Table
+    try {
+      final resBundas = await _client!.from('bundas').select('*');
       if (resBundas.isNotEmpty) {
-        final list = (resBundas as List).map((e) => BundaModel.fromJson(e)).toList();
+        final list = (resBundas as List)
+            .map((e) => BundaModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
         LocalStore.instance.saveBundas(list);
+        debugPrint('Fetched ${list.length} bundas from Supabase Cloud');
       }
+    } catch (e) {
+      debugPrint('Notice fetching bundas: $e');
+    }
 
+    // 5. Users & System Audit Logs Table
+    try {
+      final resUsers = await _client!.from('users').select('*');
       if (resUsers.isNotEmpty) {
         final userList = resUsers as List;
         Map<String, dynamic>? auditRow;
         for (var u in userList) {
           if (u['username'] == 'SYSTEM_AUDIT_TRAIL') {
-            auditRow = u;
+            auditRow = Map<String, dynamic>.from(u);
             break;
           }
         }
@@ -124,7 +157,9 @@ class SupabaseService {
           try {
             final rawList = jsonDecode(auditRow['name']);
             if (rawList is List) {
-              final cloudLogs = rawList.map((e) => LogModel.fromJson(e)).toList();
+              final cloudLogs = rawList
+                  .map((e) => LogModel.fromJson(Map<String, dynamic>.from(e)))
+                  .toList();
               LocalStore.instance.mergeCloudLogs(cloudLogs);
             }
           } catch (e) {
@@ -134,12 +169,13 @@ class SupabaseService {
 
         final filteredUsers = userList
             .where((u) => u['username'] != 'SYSTEM_AUDIT_TRAIL')
-            .map((e) => UserModel.fromJson(e))
+            .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
             .toList();
         LocalStore.instance.saveUsers(filteredUsers);
+        debugPrint('Fetched ${filteredUsers.length} users from Supabase Cloud');
       }
     } catch (e) {
-      debugPrint('Auto cloud fetch notice: $e');
+      debugPrint('Notice fetching users: $e');
     }
   }
 }
