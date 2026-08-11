@@ -28,19 +28,12 @@ class SupabaseService {
       _client = Supabase.instance.client;
       debugPrint('Supabase Cloud SDK initialized successfully.');
 
-      // On FIRST install, do a BLOCKING fetch so cloud data is ready before UI renders.
-      // On subsequent launches, do a non-blocking background fetch.
-      if (!LocalStore.instance.cloudDataLoaded) {
-        debugPrint('First install detected: performing BLOCKING cloud data fetch...');
-        await fetchCloudData();
-        debugPrint('BLOCKING cloud fetch complete. All data loaded from Supabase.');
-      } else {
-        unawaited(fetchCloudData());
-      }
+      // NON-BLOCKING background fetch so app opens instantly with 0ms delay!
+      unawaited(fetchCloudData());
 
-      // Periodic cloud fetch every 15 seconds
+      // Periodic cloud fetch every 10 seconds
       _autoSyncTimer?.cancel();
-      _autoSyncTimer = Timer.periodic(const Duration(seconds: 15), (_) => fetchCloudData());
+      _autoSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) => fetchCloudData());
     } catch (e) {
       debugPrint('Supabase init notice: $e');
     }
@@ -85,11 +78,6 @@ class SupabaseService {
       final response = await request.close();
       final statusCode = response.statusCode;
       debugPrint('Cloud HTTP upsert for $table: status=$statusCode');
-
-      if (statusCode >= 400) {
-        final body = await response.transform(utf8.decoder).join();
-        debugPrint('Cloud HTTP upsert error body: $body');
-      }
       httpClient.close();
     } catch (e) {
       debugPrint('Cloud HTTP upsert exception for $table: $e');
@@ -145,8 +133,6 @@ class SupabaseService {
   Future<void> fetchCloudData() async {
     if (_client == null) return;
 
-    bool anySuccess = false;
-
     // 1. Children Table
     try {
       final resChildren = await _client!.from('children').select('*');
@@ -156,7 +142,6 @@ class SupabaseService {
             .toList();
         LocalStore.instance.mergeCloudChildren(list);
         debugPrint('Fetched ${list.length} children from Supabase Cloud');
-        anySuccess = true;
       }
     } catch (e) {
       debugPrint('Notice fetching children: $e');
@@ -171,7 +156,6 @@ class SupabaseService {
             .toList();
         LocalStore.instance.mergeCloudNotulens(list);
         debugPrint('Fetched ${list.length} notulens from Supabase Cloud');
-        anySuccess = true;
       }
     } catch (e) {
       debugPrint('Notice fetching notulens: $e');
@@ -186,7 +170,6 @@ class SupabaseService {
             .toList();
         LocalStore.instance.mergeCloudPrograms(list);
         debugPrint('Fetched ${list.length} programs from Supabase Cloud');
-        anySuccess = true;
       }
     } catch (e) {
       debugPrint('Notice fetching programs: $e');
@@ -201,7 +184,6 @@ class SupabaseService {
             .toList();
         LocalStore.instance.mergeCloudBundas(list);
         debugPrint('Fetched ${list.length} bundas from Supabase Cloud');
-        anySuccess = true;
       }
     } catch (e) {
       debugPrint('Notice fetching bundas: $e');
@@ -217,15 +199,9 @@ class SupabaseService {
             .toList();
         LocalStore.instance.mergeCloudUsers(filteredUsers);
         debugPrint('Fetched ${filteredUsers.length} users from Supabase Cloud');
-        anySuccess = true;
       }
     } catch (e) {
       debugPrint('Notice fetching users: $e');
-    }
-
-    // Mark cloud as loaded if at least one table was fetched successfully
-    if (anySuccess) {
-      LocalStore.instance.markCloudLoaded();
     }
   }
 }

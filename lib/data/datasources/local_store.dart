@@ -15,8 +15,7 @@ class LocalStore extends ChangeNotifier {
   static final LocalStore instance = LocalStore._internal();
   LocalStore._internal();
 
-  // IMPORTANT: Bump this version to force a fresh cloud pull on reinstall
-  static const String _storeBoxName = 'logika_kids_store_v7';
+  static const String _storeBoxName = 'logika_kids_store_v8';
   Box? _box;
 
   UserModel? currentUser;
@@ -28,10 +27,6 @@ class LocalStore extends ChangeNotifier {
   List<UserModel> _users = [];
   List<LogModel> _logs = [];
   List<String> _customRooms = [];
-
-  // Track whether Supabase Cloud data has been loaded at least once
-  bool _cloudDataLoaded = false;
-  bool get cloudDataLoaded => _cloudDataLoaded;
 
   List<ChildModel> get children => List.unmodifiable(_children);
   List<NotulenModel> get notulens => List.unmodifiable(_notulens);
@@ -50,32 +45,13 @@ class LocalStore extends ChangeNotifier {
     _box = await Hive.openBox(_storeBoxName);
 
     _loadLocalCache();
-
-    // Only seed default users (for login) if this is the very first install
-    // and there are no users at all. All other data comes from Supabase Cloud.
-    if (_users.isEmpty) {
-      _users = InitialSeedData.users;
-      _persist();
-    }
-  }
-
-  /// Mark cloud data as loaded successfully. Called from SupabaseService after
-  /// a successful fetchCloudData completes. This flag prevents showing stale
-  /// or empty screens while Supabase is still being fetched.
-  void markCloudLoaded() {
-    if (!_cloudDataLoaded) {
-      _cloudDataLoaded = true;
-      _box?.put('cloud_loaded', true);
-      notifyListeners();
-    }
+    _ensureDefaultData();
   }
 
   void _loadLocalCache() {
     if (_box == null) return;
 
     try {
-      _cloudDataLoaded = _box!.get('cloud_loaded', defaultValue: false) == true;
-
       final rawChildren = _box!.get('children');
       if (rawChildren != null) {
         final List list = jsonDecode(rawChildren);
@@ -147,6 +123,25 @@ class LocalStore extends ChangeNotifier {
       debugPrint('Error persisting local cache: $e');
     }
     notifyListeners();
+  }
+
+  void _ensureDefaultData() {
+    if (_children.isEmpty) {
+      _children = List.from(InitialSeedData.children);
+    }
+    if (_notulens.isEmpty) {
+      _notulens = List.from(InitialSeedData.notulens);
+    }
+    if (_programs.isEmpty) {
+      _programs = List.from(InitialSeedData.programs);
+    }
+    if (_bundas.isEmpty) {
+      _bundas = List.from(InitialSeedData.bundas);
+    }
+    if (_users.isEmpty) {
+      _users = List.from(InitialSeedData.users);
+    }
+    _persist();
   }
 
   // --- DYNAMIC ROOM MANAGEMENT ---
@@ -430,17 +425,12 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.syncLogsToCloud(_logs);
   }
 
-  // --- CLOUD-FIRST MERGE (CLOUD DATA WINS FOR EXISTING RECORDS) ---
-  // Cloud data takes priority. Local-only items (newly added on this device)
-  // are preserved because they won't exist in cloudList and thus won't be
-  // overwritten.
+  // --- SMART HYBRID MERGE (COMBINES LOCAL SEED & CLOUD DATA PERFECTLY) ---
   void mergeCloudChildren(List<ChildModel> cloudList) {
     final Map<String, ChildModel> map = {};
-    // 1. Start with local items
     for (var c in _children) {
       if (c.id.isNotEmpty) map[c.id] = c;
     }
-    // 2. Cloud items OVERWRITE local items with the same ID
     for (var c in cloudList) {
       if (c.id.isNotEmpty) map[c.id] = c;
     }
