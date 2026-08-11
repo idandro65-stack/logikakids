@@ -75,10 +75,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             elevation: 1,
             title: Row(
               children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFFF43F5E),
+                CircleAvatar(
+                  backgroundColor: Colors.transparent,
                   radius: 16,
-                  child: Icon(LucideIcons.heartHandshake, size: 18, color: Colors.white),
+                  child: Image.asset('assets/icon.png', width: 32, height: 32),
                 ),
                 const SizedBox(width: 8),
                 Column(

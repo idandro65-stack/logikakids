@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/services/pdf_service.dart';
 import '../../data/datasources/local_store.dart';
@@ -19,6 +20,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   String _categoryFilter = 'all';
   String _roomFilter = 'all';
   String _sortBy = 'date-desc'; // Default: Tanggal Terbaru
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
 
   Future<void> _confirmDeleteNotulen(NotulenModel n) async {
     final confirm = await showDialog<bool>(
@@ -85,7 +88,18 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             if (!rooms.contains(_roomFilter)) continue;
           }
 
-          // 3. Search Bar Filter
+          // 3. Date Range Filter
+          if (_dateFrom != null || _dateTo != null) {
+            try {
+              final notulenDate = DateTime.parse(n.date);
+              if (_dateFrom != null && notulenDate.isBefore(_dateFrom!)) continue;
+              if (_dateTo != null && notulenDate.isAfter(_dateTo!.add(const Duration(days: 1)))) continue;
+            } catch (_) {
+              // Skip if date format is invalid
+            }
+          }
+
+          // 4. Search Bar Filter
           if (_searchController.text.isNotEmpty) {
             final query = _searchController.text.toLowerCase();
             final matchChild = n.childName.toLowerCase().contains(query);
@@ -198,6 +212,90 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         onChanged: (val) => setState(() => _roomFilter = val!),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // 3. Date Range Filter Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _dateFrom ?? DateTime.now(),
+                            firstDate: DateTime(2025),
+                            lastDate: DateTime(2030),
+                          );
+                          if (picked != null) setState(() => _dateFrom = picked);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(LucideIcons.calendar, size: 14, color: Color(0xFFF43F5E)),
+                              const SizedBox(width: 4),
+                              Text(
+                                _dateFrom != null
+                                    ? 'Dari: ${DateFormat('yyyy-MM-dd').format(_dateFrom!)}'
+                                    : 'Dari Tanggal',
+                                style: TextStyle(fontSize: 10, color: _dateFrom != null ? Colors.black87 : Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _dateTo ?? DateTime.now(),
+                            firstDate: DateTime(2025),
+                            lastDate: DateTime(2030),
+                          );
+                          if (picked != null) setState(() => _dateTo = picked);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(LucideIcons.calendarCheck, size: 14, color: Color(0xFFF43F5E)),
+                              const SizedBox(width: 4),
+                              Text(
+                                _dateTo != null
+                                    ? 'Sampai: ${DateFormat('yyyy-MM-dd').format(_dateTo!)}'
+                                    : 'Sampai Tanggal',
+                                style: TextStyle(fontSize: 10, color: _dateTo != null ? Colors.black87 : Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_dateFrom != null || _dateTo != null) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                        icon: const Icon(LucideIcons.x, size: 16, color: Colors.red),
+                        onPressed: () => setState(() {
+                          _dateFrom = null;
+                          _dateTo = null;
+                        }),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),

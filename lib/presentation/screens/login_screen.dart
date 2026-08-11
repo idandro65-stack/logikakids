@@ -70,14 +70,10 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 36,
-                    backgroundColor: Color(0xFFF43F5E),
-                    child: Icon(
-                      LucideIcons.heartHandshake,
-                      size: 40,
-                      color: Colors.white,
-                    ),
+                    backgroundColor: Colors.transparent,
+                    child: Image.asset('assets/icon.png', width: 72, height: 72),
                   ),
                   const SizedBox(height: 16),
                   Text(

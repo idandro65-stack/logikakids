@@ -15,7 +15,8 @@ class LocalStore extends ChangeNotifier {
   static final LocalStore instance = LocalStore._internal();
   LocalStore._internal();
 
-  static const String _storeBoxName = 'logika_kids_store_v5';
+  // IMPORTANT: Bump this version to force a fresh cloud pull on reinstall
+  static const String _storeBoxName = 'logika_kids_store_v7';
   Box? _box;
 
   UserModel? currentUser;
@@ -27,6 +28,10 @@ class LocalStore extends ChangeNotifier {
   List<UserModel> _users = [];
   List<LogModel> _logs = [];
   List<String> _customRooms = [];
+
+  // Track whether Supabase Cloud data has been loaded at least once
+  bool _cloudDataLoaded = false;
+  bool get cloudDataLoaded => _cloudDataLoaded;
 
   List<ChildModel> get children => List.unmodifiable(_children);
   List<NotulenModel> get notulens => List.unmodifiable(_notulens);
@@ -45,13 +50,32 @@ class LocalStore extends ChangeNotifier {
     _box = await Hive.openBox(_storeBoxName);
 
     _loadLocalCache();
-    _ensureDefaultData();
+
+    // Only seed default users (for login) if this is the very first install
+    // and there are no users at all. All other data comes from Supabase Cloud.
+    if (_users.isEmpty) {
+      _users = InitialSeedData.users;
+      _persist();
+    }
+  }
+
+  /// Mark cloud data as loaded successfully. Called from SupabaseService after
+  /// a successful fetchCloudData completes. This flag prevents showing stale
+  /// or empty screens while Supabase is still being fetched.
+  void markCloudLoaded() {
+    if (!_cloudDataLoaded) {
+      _cloudDataLoaded = true;
+      _box?.put('cloud_loaded', true);
+      notifyListeners();
+    }
   }
 
   void _loadLocalCache() {
     if (_box == null) return;
 
     try {
+      _cloudDataLoaded = _box!.get('cloud_loaded', defaultValue: false) == true;
+
       final rawChildren = _box!.get('children');
       if (rawChildren != null) {
         final List list = jsonDecode(rawChildren);
@@ -125,25 +149,6 @@ class LocalStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _ensureDefaultData() {
-    if (_children.isEmpty) {
-      _children = InitialSeedData.children;
-    }
-    if (_notulens.isEmpty) {
-      _notulens = InitialSeedData.notulens;
-    }
-    if (_programs.isEmpty) {
-      _programs = InitialSeedData.programs;
-    }
-    if (_bundas.isEmpty) {
-      _bundas = InitialSeedData.bundas;
-    }
-    if (_users.isEmpty) {
-      _users = InitialSeedData.users;
-    }
-    _persist();
-  }
-
   // --- DYNAMIC ROOM MANAGEMENT ---
   void addRoom(String roomName) {
     final clean = roomName.trim();
@@ -196,13 +201,11 @@ class LocalStore extends ChangeNotifier {
         if (!map.containsKey(progKey)) map[progKey] = <int>{};
         if (!map.containsKey(cleanKey)) map[cleanKey] = <int>{};
 
-        if (indices is List) {
-          for (var idx in indices) {
-            if (idx is num) {
-              final val = idx.toInt();
-              map[progKey]!.add(val);
-              map[cleanKey]!.add(val);
-            }
+        for (var idx in indices) {
+          if (idx is num) {
+            final val = idx.toInt();
+            map[progKey]!.add(val);
+            map[cleanKey]!.add(val);
           }
         }
       });
@@ -250,7 +253,7 @@ class LocalStore extends ChangeNotifier {
       return match.programName;
     }
     if (idOrName.startsWith('SUB_')) {
-      return 'Program #${idOrName.substring(4, 10).toUpperCase()}';
+      return 'Program #${idOrName.substring(4, idOrName.length > 10 ? 10 : idOrName.length).toUpperCase()}';
     }
     return idOrName;
   }
@@ -427,13 +430,18 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.syncLogsToCloud(_logs);
   }
 
-  // --- SMART MERGE CLOUD DATA (NEVER WIPES LOCAL ITEMS!) ---
+  // --- CLOUD-FIRST MERGE (CLOUD DATA WINS FOR EXISTING RECORDS) ---
+  // Cloud data takes priority. Local-only items (newly added on this device)
+  // are preserved because they won't exist in cloudList and thus won't be
+  // overwritten.
   void mergeCloudChildren(List<ChildModel> cloudList) {
     final Map<String, ChildModel> map = {};
-    for (var c in cloudList) {
+    // 1. Start with local items
+    for (var c in _children) {
       if (c.id.isNotEmpty) map[c.id] = c;
     }
-    for (var c in _children) {
+    // 2. Cloud items OVERWRITE local items with the same ID
+    for (var c in cloudList) {
       if (c.id.isNotEmpty) map[c.id] = c;
     }
     _children = map.values.toList();
@@ -443,10 +451,10 @@ class LocalStore extends ChangeNotifier {
 
   void mergeCloudNotulens(List<NotulenModel> cloudList) {
     final Map<String, NotulenModel> map = {};
-    for (var n in cloudList) {
+    for (var n in _notulens) {
       if (n.id.isNotEmpty) map[n.id] = n;
     }
-    for (var n in _notulens) {
+    for (var n in cloudList) {
       if (n.id.isNotEmpty) map[n.id] = n;
     }
     _notulens = map.values.toList();
@@ -456,10 +464,10 @@ class LocalStore extends ChangeNotifier {
 
   void mergeCloudPrograms(List<ProgramModel> cloudList) {
     final Map<String, ProgramModel> map = {};
-    for (var p in cloudList) {
+    for (var p in _programs) {
       if (p.id.isNotEmpty) map[p.id] = p;
     }
-    for (var p in _programs) {
+    for (var p in cloudList) {
       if (p.id.isNotEmpty) map[p.id] = p;
     }
     _programs = map.values.toList();
@@ -468,10 +476,10 @@ class LocalStore extends ChangeNotifier {
 
   void mergeCloudBundas(List<BundaModel> cloudList) {
     final Map<String, BundaModel> map = {};
-    for (var b in cloudList) {
+    for (var b in _bundas) {
       if (b.id.isNotEmpty) map[b.id] = b;
     }
-    for (var b in _bundas) {
+    for (var b in cloudList) {
       if (b.id.isNotEmpty) map[b.id] = b;
     }
     _bundas = map.values.toList();
@@ -480,10 +488,10 @@ class LocalStore extends ChangeNotifier {
 
   void mergeCloudUsers(List<UserModel> cloudList) {
     final Map<String, UserModel> map = {};
-    for (var u in cloudList) {
+    for (var u in _users) {
       if (u.username.isNotEmpty) map[u.username] = u;
     }
-    for (var u in _users) {
+    for (var u in cloudList) {
       if (u.username.isNotEmpty) map[u.username] = u;
     }
     _users = map.values.toList();
@@ -492,10 +500,10 @@ class LocalStore extends ChangeNotifier {
 
   void mergeCloudLogs(List<LogModel> cloudLogs) {
     final Map<String, LogModel> map = {};
-    for (var l in cloudLogs) {
+    for (var l in _logs) {
       if (l.id.isNotEmpty) map[l.id] = l;
     }
-    for (var l in _logs) {
+    for (var l in cloudLogs) {
       if (l.id.isNotEmpty) map[l.id] = l;
     }
     _logs = map.values.toList();
