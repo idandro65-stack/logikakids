@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -200,6 +201,7 @@ class LocalStore extends ChangeNotifier {
     ));
     _persist();
     debugPrint('Queued pending sync item for $table: $itemId (Total in Queue: ${_pendingSyncQueue.length})');
+    unawaited(SupabaseService.instance.processAndFetchCloud());
   }
 
   void removePendingSync(String itemId) {

@@ -31,9 +31,9 @@ class SupabaseService {
       // Immediate non-blocking cloud fetch & sync queue processing on launch
       unawaited(processAndFetchCloud());
 
-      // Periodic cloud sync & fetch every 5 seconds for real-time parity with web app
+      // Smart Adaptive Background Sync (15-second battery & data saving interval)
       _autoSyncTimer?.cancel();
-      _autoSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) => processAndFetchCloud());
+      _autoSyncTimer = Timer.periodic(const Duration(seconds: 15), (_) => processAndFetchCloud());
     } catch (e) {
       debugPrint('Supabase init notice: $e');
       unawaited(processAndFetchCloud());
