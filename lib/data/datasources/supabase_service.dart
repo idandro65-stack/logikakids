@@ -28,20 +28,63 @@ class SupabaseService {
       _client = Supabase.instance.client;
       debugPrint('Supabase Cloud SDK initialized successfully.');
 
-      // Immediate non-blocking cloud fetch on launch
-      unawaited(fetchCloudData());
+      // Immediate non-blocking cloud fetch & sync queue processing on launch
+      unawaited(processAndFetchCloud());
 
-      // Periodic cloud fetch every 5 seconds for real-time parity with web app
+      // Periodic cloud sync & fetch every 5 seconds for real-time parity with web app
       _autoSyncTimer?.cancel();
-      _autoSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) => fetchCloudData());
+      _autoSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) => processAndFetchCloud());
     } catch (e) {
       debugPrint('Supabase init notice: $e');
-      // If SDK init fails, still fetch via REST API
-      unawaited(fetchCloudData());
+      unawaited(processAndFetchCloud());
     }
   }
 
   SupabaseClient? get client => _client;
+
+  Future<void> processAndFetchCloud() async {
+    await processPendingSyncQueue();
+    await fetchCloudData();
+  }
+
+  // Process offline pending sync items queue
+  Future<void> processPendingSyncQueue() async {
+    final queue = List<PendingSyncItem>.from(LocalStore.instance.pendingSyncQueue);
+    if (queue.isEmpty) return;
+
+    debugPrint('Flushing ${queue.length} pending offline sync items to Supabase Cloud...');
+
+    for (var item in queue) {
+      bool success = false;
+      if (item.action == 'UPSERT') {
+        final onConflict = item.table == 'users' ? 'username' : 'id';
+        if (_client != null) {
+          try {
+            await _client!.from(item.table).upsert(item.payload, onConflict: onConflict);
+            success = true;
+          } catch (_) {}
+        }
+        if (!success) {
+          success = await _httpUpsertDirect(item.table, item.payload, onConflict);
+        }
+      } else if (item.action == 'DELETE') {
+        final col = item.table == 'users' ? 'username' : 'id';
+        if (_client != null) {
+          try {
+            await _client!.from(item.table).delete().eq(col, item.id);
+            success = true;
+          } catch (_) {}
+        }
+        if (!success) {
+          success = await _httpDeleteDirect(item.table, item.id, col);
+        }
+      }
+
+      if (success) {
+        LocalStore.instance.removePendingSync(item.id);
+      }
+    }
+  }
 
   // Direct HTTP REST GET helper for fetching tables from Supabase
   Future<List<dynamic>> _httpGetTable(String table) async {
@@ -84,11 +127,17 @@ class SupabaseService {
     }
 
     // 2. Direct HTTP REST Fallback to Supabase Endpoint
-    await _httpUpsert(table, payload, onConflict);
+    final success = await _httpUpsertDirect(table, payload, onConflict);
+    if (success) {
+      final itemId = payload['id']?.toString() ?? payload['username']?.toString() ?? '';
+      if (itemId.isNotEmpty) {
+        LocalStore.instance.removePendingSync(itemId);
+      }
+    }
     unawaited(fetchCloudData());
   }
 
-  Future<void> _httpUpsert(String table, Map<String, dynamic> payload, String onConflict) async {
+  Future<bool> _httpUpsertDirect(String table, Map<String, dynamic> payload, String onConflict) async {
     try {
       final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?on_conflict=$onConflict');
       final httpClient = HttpClient();
@@ -104,11 +153,14 @@ class SupabaseService {
       request.add(bodyBytes);
 
       final response = await request.close();
-      debugPrint('Cloud HTTP upsert for $table: status=${response.statusCode}');
+      final statusCode = response.statusCode;
+      debugPrint('Cloud HTTP upsert for $table: status=$statusCode');
       httpClient.close();
+      return statusCode < 400;
     } catch (e) {
       debugPrint('Cloud HTTP upsert exception for $table: $e');
     }
+    return false;
   }
 
   // Push record deletion to Supabase Cloud with guaranteed REST fallback
@@ -126,6 +178,14 @@ class SupabaseService {
       }
     }
 
+    final success = await _httpDeleteDirect(table, id, col);
+    if (success) {
+      LocalStore.instance.removePendingSync(id);
+    }
+    unawaited(fetchCloudData());
+  }
+
+  Future<bool> _httpDeleteDirect(String table, String id, String col) async {
     try {
       final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?$col=eq.$id');
       final httpClient = HttpClient();
@@ -137,10 +197,11 @@ class SupabaseService {
       final response = await request.close();
       debugPrint('Cloud HTTP delete status for $table: ${response.statusCode}');
       httpClient.close();
-      unawaited(fetchCloudData());
+      return response.statusCode < 400;
     } catch (e) {
       debugPrint('Cloud HTTP delete notice for $table: $e');
     }
+    return false;
   }
 
   // Sync System Audit Logs to Supabase Cloud
@@ -185,7 +246,6 @@ class SupabaseService {
         }
         if (list.isNotEmpty) {
           LocalStore.instance.saveCloudChildren(list);
-          debugPrint('Successfully synced ${list.length} children from Supabase Cloud');
         }
       }
     } catch (e) {
@@ -217,7 +277,6 @@ class SupabaseService {
         }
         if (list.isNotEmpty) {
           LocalStore.instance.saveCloudNotulens(list);
-          debugPrint('Successfully synced ${list.length} notulens from Supabase Cloud');
         }
       }
     } catch (e) {
@@ -249,7 +308,6 @@ class SupabaseService {
         }
         if (list.isNotEmpty) {
           LocalStore.instance.saveCloudPrograms(list);
-          debugPrint('Successfully synced ${list.length} programs from Supabase Cloud');
         }
       }
     } catch (e) {
@@ -281,7 +339,6 @@ class SupabaseService {
         }
         if (list.isNotEmpty) {
           LocalStore.instance.saveCloudBundas(list);
-          debugPrint('Successfully synced ${list.length} bundas from Supabase Cloud');
         }
       }
     } catch (e) {
@@ -338,7 +395,6 @@ class SupabaseService {
 
         if (userList.isNotEmpty) {
           LocalStore.instance.saveCloudUsers(userList);
-          debugPrint('Successfully synced ${userList.length} users from Supabase Cloud');
         }
       }
     } catch (e) {

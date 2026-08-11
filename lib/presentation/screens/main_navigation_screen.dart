@@ -81,24 +81,63 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   child: Image.asset('assets/icon.png', width: 32, height: 32),
                 ),
                 const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      AppConfig.appName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFFBE123C),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            AppConfig.appName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFBE123C),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          if (store.pendingSyncCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: Text(
+                                'Pending (${store.pendingSyncCount})',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange.shade900,
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: const Text(
+                                'Online',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      currentUser?.role == 'admin'
-                          ? 'Admin: ${currentUser?.name}'
-                          : 'Terapis: ${currentUser?.name}',
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
-                    ),
-                  ],
+                      Text(
+                        currentUser?.role == 'admin'
+                            ? 'Admin: ${currentUser?.name}'
+                            : 'Terapis: ${currentUser?.name}',
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

@@ -11,11 +11,43 @@ import '../models/log_model.dart';
 import '../initial_seed_data.dart';
 import 'supabase_service.dart';
 
+class PendingSyncItem {
+  final String id;
+  final String action; // 'UPSERT' or 'DELETE'
+  final String table;
+  final Map<String, dynamic> payload;
+
+  PendingSyncItem({
+    required this.id,
+    required this.action,
+    required this.table,
+    required this.payload,
+  });
+
+  factory PendingSyncItem.fromJson(Map<String, dynamic> json) {
+    return PendingSyncItem(
+      id: json['id']?.toString() ?? '',
+      action: json['action']?.toString() ?? 'UPSERT',
+      table: json['table']?.toString() ?? '',
+      payload: Map<String, dynamic>.from(json['payload'] ?? {}),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'action': action,
+      'table': table,
+      'payload': payload,
+    };
+  }
+}
+
 class LocalStore extends ChangeNotifier {
   static final LocalStore instance = LocalStore._internal();
   LocalStore._internal();
 
-  static const String _storeBoxName = 'logika_kids_store_v8';
+  static const String _storeBoxName = 'logika_kids_store_v9';
   Box? _box;
 
   UserModel? currentUser;
@@ -27,6 +59,7 @@ class LocalStore extends ChangeNotifier {
   List<UserModel> _users = [];
   List<LogModel> _logs = [];
   List<String> _customRooms = [];
+  List<PendingSyncItem> _pendingSyncQueue = [];
 
   List<ChildModel> get children => List.unmodifiable(_children);
   List<NotulenModel> get notulens => List.unmodifiable(_notulens);
@@ -34,6 +67,8 @@ class LocalStore extends ChangeNotifier {
   List<BundaModel> get bundas => List.unmodifiable(_bundas);
   List<UserModel> get users => List.unmodifiable(_users);
   List<LogModel> get logs => List.unmodifiable(_logs);
+  List<PendingSyncItem> get pendingSyncQueue => List.unmodifiable(_pendingSyncQueue);
+  int get pendingSyncCount => _pendingSyncQueue.length;
 
   List<String> get allRooms {
     final set = <String>{...AppConfig.rooms, ..._customRooms};
@@ -94,6 +129,12 @@ class LocalStore extends ChangeNotifier {
         _customRooms = list.map((e) => e.toString()).toList();
       }
 
+      final rawQueue = _box!.get('pending_sync_queue');
+      if (rawQueue != null) {
+        final List list = jsonDecode(rawQueue);
+        _pendingSyncQueue = list.map((e) => PendingSyncItem.fromJson(e)).toList();
+      }
+
       final rawAuth = _box!.get('auth_session');
       if (rawAuth != null) {
         currentUser = UserModel.fromJson(jsonDecode(rawAuth));
@@ -113,6 +154,7 @@ class LocalStore extends ChangeNotifier {
       _box!.put('users', jsonEncode(_users.map((e) => e.toJson()).toList()));
       _box!.put('logs', jsonEncode(_logs.map((e) => e.toJson()).toList()));
       _box!.put('custom_rooms', jsonEncode(_customRooms));
+      _box!.put('pending_sync_queue', jsonEncode(_pendingSyncQueue.map((e) => e.toJson()).toList()));
 
       if (currentUser != null) {
         _box!.put('auth_session', jsonEncode(currentUser!.toJson()));
@@ -142,6 +184,28 @@ class LocalStore extends ChangeNotifier {
       _users = List.from(InitialSeedData.users);
     }
     _persist();
+  }
+
+  // --- OFFLINE SYNC QUEUE MANAGEMENT ---
+  void enqueueSync(String table, String action, Map<String, dynamic> payload) {
+    final itemId = payload['id']?.toString() ?? payload['username']?.toString() ?? '';
+    if (itemId.isEmpty) return;
+
+    _pendingSyncQueue.removeWhere((item) => item.table == table && item.id == itemId);
+    _pendingSyncQueue.add(PendingSyncItem(
+      id: itemId,
+      action: action,
+      table: table,
+      payload: payload,
+    ));
+    _persist();
+    debugPrint('Queued pending sync item for $table: $itemId (Total in Queue: ${_pendingSyncQueue.length})');
+  }
+
+  void removePendingSync(String itemId) {
+    _pendingSyncQueue.removeWhere((item) => item.id == itemId);
+    _persist();
+    debugPrint('Removed item $itemId from pending sync queue. Remaining: ${_pendingSyncQueue.length}');
   }
 
   // --- DYNAMIC ROOM MANAGEMENT ---
@@ -268,6 +332,7 @@ class LocalStore extends ChangeNotifier {
         currentUser = updated;
       }
       addLog('UPDATE_PASSWORD', 'Mengubah password pengguna: ${old.name}');
+      enqueueSync('users', 'UPSERT', updated.toJson());
       _persist();
       SupabaseService.instance.syncToCloud('users', updated.toJson());
       return true;
@@ -285,6 +350,7 @@ class LocalStore extends ChangeNotifier {
     );
     _children.insert(0, newChild);
     addLog('ADD_CHILD', 'Menambahkan data anak baru: \'${name.trim()}\' (${category.toUpperCase()})');
+    enqueueSync('children', 'UPSERT', newChild.toJson());
     _persist();
     SupabaseService.instance.syncToCloud('children', newChild.toJson());
   }
@@ -300,6 +366,7 @@ class LocalStore extends ChangeNotifier {
       );
       _children[idx] = updated;
       addLog('UPDATE_CHILD', 'Mengubah data anak: \'${newName.trim()}\'');
+      enqueueSync('children', 'UPSERT', updated.toJson());
       _persist();
       SupabaseService.instance.syncToCloud('children', updated.toJson());
     }
@@ -311,6 +378,7 @@ class LocalStore extends ChangeNotifier {
     if (target.id.isNotEmpty) {
       addLog('DELETE_CHILD', 'Menghapus data anak: \'${target.name}\'');
     }
+    enqueueSync('children', 'DELETE', {'id': id});
     _persist();
     SupabaseService.instance.deleteFromCloud('children', id);
   }
@@ -319,6 +387,7 @@ class LocalStore extends ChangeNotifier {
   void addUser(UserModel user) {
     _users.insert(0, user);
     addLog('ADD_USER', 'Menambahkan akun staf/admin baru: ${user.name} (${user.username})');
+    enqueueSync('users', 'UPSERT', user.toJson());
     _persist();
     SupabaseService.instance.syncToCloud('users', user.toJson());
 
@@ -327,6 +396,7 @@ class LocalStore extends ChangeNotifier {
       if (!_bundas.any((b) => b.name.toLowerCase() == bundaName.toLowerCase())) {
         final newBunda = BundaModel(id: 'SUB_${DateTime.now().millisecondsSinceEpoch}', name: bundaName);
         _bundas.add(newBunda);
+        enqueueSync('bundas', 'UPSERT', newBunda.toJson());
         SupabaseService.instance.syncToCloud('bundas', newBunda.toJson());
       }
     }
@@ -337,6 +407,7 @@ class LocalStore extends ChangeNotifier {
     if (idx != -1) {
       _users[idx] = user;
       addLog('UPDATE_USER', 'Mengubah akun staf/admin: ${user.name}');
+      enqueueSync('users', 'UPSERT', user.toJson());
       _persist();
       SupabaseService.instance.syncToCloud('users', user.toJson());
     }
@@ -348,6 +419,7 @@ class LocalStore extends ChangeNotifier {
     if (target.username.isNotEmpty) {
       addLog('DELETE_USER', 'Menghapus akun pengguna: ${target.name} (${target.username})');
     }
+    enqueueSync('users', 'DELETE', {'username': username});
     _persist();
     SupabaseService.instance.deleteFromCloud('users', username);
   }
@@ -356,6 +428,7 @@ class LocalStore extends ChangeNotifier {
   void addProgram(ProgramModel program) {
     _programs.insert(0, program);
     addLog('ADD_PROGRAM', 'Menambahkan program terapi baru: ${program.programName} (${program.room})');
+    enqueueSync('programs', 'UPSERT', program.toJson());
     _persist();
     SupabaseService.instance.syncToCloud('programs', program.toJson());
   }
@@ -365,6 +438,7 @@ class LocalStore extends ChangeNotifier {
     if (idx != -1) {
       _programs[idx] = program;
       addLog('UPDATE_PROGRAM', 'Mengubah program terapi: ${program.programName}');
+      enqueueSync('programs', 'UPSERT', program.toJson());
       _persist();
       SupabaseService.instance.syncToCloud('programs', program.toJson());
     }
@@ -376,6 +450,7 @@ class LocalStore extends ChangeNotifier {
     if (target.id.isNotEmpty) {
       addLog('DELETE_PROGRAM', 'Menghapus program terapi: ${target.programName}');
     }
+    enqueueSync('programs', 'DELETE', {'id': id});
     _persist();
     SupabaseService.instance.deleteFromCloud('programs', id);
   }
@@ -384,6 +459,7 @@ class LocalStore extends ChangeNotifier {
   void addNotulen(NotulenModel notulen) {
     _notulens.insert(0, notulen);
     addLog('ADD_NOTULEN', 'Bunda ${notulen.notulen} menginput notulen harian untuk ${notulen.childName} (${notulen.room})');
+    enqueueSync('notulens', 'UPSERT', notulen.toJson());
     _persist();
     SupabaseService.instance.syncToCloud('notulens', notulen.toJson());
   }
@@ -393,6 +469,7 @@ class LocalStore extends ChangeNotifier {
     if (idx != -1) {
       _notulens[idx] = notulen;
       addLog('UPDATE_NOTULEN', 'Memperbarui notulen harian ${notulen.childName} (${notulen.date})');
+      enqueueSync('notulens', 'UPSERT', notulen.toJson());
       _persist();
       SupabaseService.instance.syncToCloud('notulens', notulen.toJson());
     }
@@ -404,6 +481,7 @@ class LocalStore extends ChangeNotifier {
     if (target.id.isNotEmpty) {
       addLog('DELETE_NOTULEN', 'Menghapus notulen sesi ${target.childName} (${target.date})');
     }
+    enqueueSync('notulens', 'DELETE', {'id': id});
     _persist();
     SupabaseService.instance.deleteFromCloud('notulens', id);
   }
