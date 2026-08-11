@@ -28,18 +28,44 @@ class SupabaseService {
       _client = Supabase.instance.client;
       debugPrint('Supabase Cloud SDK initialized successfully.');
 
-      // NON-BLOCKING background fetch so app opens instantly with 0ms delay!
+      // Immediate non-blocking cloud fetch on launch
       unawaited(fetchCloudData());
 
-      // Periodic cloud fetch every 10 seconds
+      // Periodic cloud fetch every 5 seconds for real-time parity with web app
       _autoSyncTimer?.cancel();
-      _autoSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) => fetchCloudData());
+      _autoSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) => fetchCloudData());
     } catch (e) {
       debugPrint('Supabase init notice: $e');
+      // If SDK init fails, still fetch via REST API
+      unawaited(fetchCloudData());
     }
   }
 
   SupabaseClient? get client => _client;
+
+  // Direct HTTP REST GET helper for fetching tables from Supabase
+  Future<List<dynamic>> _httpGetTable(String table) async {
+    try {
+      final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?select=*');
+      final httpClient = HttpClient();
+      httpClient.connectionTimeout = const Duration(seconds: 8);
+      final request = await httpClient.getUrl(uri);
+      request.headers.set('apikey', AppConfig.supabaseAnonKey);
+      request.headers.set('Authorization', 'Bearer ${AppConfig.supabaseAnonKey}');
+
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final bodyStr = await response.transform(utf8.decoder).join();
+        final decoded = jsonDecode(bodyStr);
+        httpClient.close();
+        if (decoded is List) return decoded;
+      }
+      httpClient.close();
+    } catch (e) {
+      debugPrint('HTTP GET error for $table: $e');
+    }
+    return [];
+  }
 
   // Push record addition/update to Supabase Cloud with guaranteed REST fallback
   Future<void> syncToCloud(String table, Map<String, dynamic> payload) async {
@@ -50,6 +76,7 @@ class SupabaseService {
       try {
         await _client!.from(table).upsert(payload, onConflict: onConflict);
         debugPrint('Cloud SDK sync success for $table');
+        unawaited(fetchCloudData());
         return;
       } catch (e) {
         debugPrint('Cloud SDK notice for $table: $e, executing HTTP fallback...');
@@ -58,6 +85,7 @@ class SupabaseService {
 
     // 2. Direct HTTP REST Fallback to Supabase Endpoint
     await _httpUpsert(table, payload, onConflict);
+    unawaited(fetchCloudData());
   }
 
   Future<void> _httpUpsert(String table, Map<String, dynamic> payload, String onConflict) async {
@@ -76,8 +104,7 @@ class SupabaseService {
       request.add(bodyBytes);
 
       final response = await request.close();
-      final statusCode = response.statusCode;
-      debugPrint('Cloud HTTP upsert for $table: status=$statusCode');
+      debugPrint('Cloud HTTP upsert for $table: status=${response.statusCode}');
       httpClient.close();
     } catch (e) {
       debugPrint('Cloud HTTP upsert exception for $table: $e');
@@ -92,6 +119,7 @@ class SupabaseService {
       try {
         await _client!.from(table).delete().eq(col, id);
         debugPrint('Cloud SDK delete success for $table: $id');
+        unawaited(fetchCloudData());
         return;
       } catch (e) {
         debugPrint('Cloud SDK delete notice for $table: $e');
@@ -109,6 +137,7 @@ class SupabaseService {
       final response = await request.close();
       debugPrint('Cloud HTTP delete status for $table: ${response.statusCode}');
       httpClient.close();
+      unawaited(fetchCloudData());
     } catch (e) {
       debugPrint('Cloud HTTP delete notice for $table: $e');
     }
@@ -129,19 +158,35 @@ class SupabaseService {
     }
   }
 
-  // Fetch all Cloud Tables independently and update Local Store
+  // Fetch all Cloud Tables independently and update Local Store with 100% parity
   Future<void> fetchCloudData() async {
-    if (_client == null) return;
-
     // 1. Children Table
     try {
-      final resChildren = await _client!.from('children').select('*');
-      if (resChildren is List && resChildren.isNotEmpty) {
-        final list = resChildren
-            .map((e) => ChildModel.fromJson(Map<String, dynamic>.from(e)))
-            .toList();
-        LocalStore.instance.mergeCloudChildren(list);
-        debugPrint('Fetched ${list.length} children from Supabase Cloud');
+      List<dynamic> rawList = [];
+      if (_client != null) {
+        try {
+          final res = await _client!.from('children').select('*');
+          if (res is List) rawList = res;
+        } catch (_) {}
+      }
+      if (rawList.isEmpty) {
+        rawList = await _httpGetTable('children');
+      }
+
+      if (rawList.isNotEmpty) {
+        final list = <ChildModel>[];
+        for (var item in rawList) {
+          try {
+            final map = Map<String, dynamic>.from(item as Map);
+            list.add(ChildModel.fromJson(map));
+          } catch (e) {
+            debugPrint('Error parsing child row: $e');
+          }
+        }
+        if (list.isNotEmpty) {
+          LocalStore.instance.saveCloudChildren(list);
+          debugPrint('Successfully synced ${list.length} children from Supabase Cloud');
+        }
       }
     } catch (e) {
       debugPrint('Notice fetching children: $e');
@@ -149,13 +194,31 @@ class SupabaseService {
 
     // 2. Notulens Table
     try {
-      final resNotulens = await _client!.from('notulens').select('*');
-      if (resNotulens is List && resNotulens.isNotEmpty) {
-        final list = resNotulens
-            .map((e) => NotulenModel.fromJson(Map<String, dynamic>.from(e)))
-            .toList();
-        LocalStore.instance.mergeCloudNotulens(list);
-        debugPrint('Fetched ${list.length} notulens from Supabase Cloud');
+      List<dynamic> rawList = [];
+      if (_client != null) {
+        try {
+          final res = await _client!.from('notulens').select('*');
+          if (res is List) rawList = res;
+        } catch (_) {}
+      }
+      if (rawList.isEmpty) {
+        rawList = await _httpGetTable('notulens');
+      }
+
+      if (rawList.isNotEmpty) {
+        final list = <NotulenModel>[];
+        for (var item in rawList) {
+          try {
+            final map = Map<String, dynamic>.from(item as Map);
+            list.add(NotulenModel.fromJson(map));
+          } catch (e) {
+            debugPrint('Error parsing notulen row: $e');
+          }
+        }
+        if (list.isNotEmpty) {
+          LocalStore.instance.saveCloudNotulens(list);
+          debugPrint('Successfully synced ${list.length} notulens from Supabase Cloud');
+        }
       }
     } catch (e) {
       debugPrint('Notice fetching notulens: $e');
@@ -163,13 +226,31 @@ class SupabaseService {
 
     // 3. Programs Table
     try {
-      final resPrograms = await _client!.from('programs').select('*');
-      if (resPrograms is List && resPrograms.isNotEmpty) {
-        final list = resPrograms
-            .map((e) => ProgramModel.fromJson(Map<String, dynamic>.from(e)))
-            .toList();
-        LocalStore.instance.mergeCloudPrograms(list);
-        debugPrint('Fetched ${list.length} programs from Supabase Cloud');
+      List<dynamic> rawList = [];
+      if (_client != null) {
+        try {
+          final res = await _client!.from('programs').select('*');
+          if (res is List) rawList = res;
+        } catch (_) {}
+      }
+      if (rawList.isEmpty) {
+        rawList = await _httpGetTable('programs');
+      }
+
+      if (rawList.isNotEmpty) {
+        final list = <ProgramModel>[];
+        for (var item in rawList) {
+          try {
+            final map = Map<String, dynamic>.from(item as Map);
+            list.add(ProgramModel.fromJson(map));
+          } catch (e) {
+            debugPrint('Error parsing program row: $e');
+          }
+        }
+        if (list.isNotEmpty) {
+          LocalStore.instance.saveCloudPrograms(list);
+          debugPrint('Successfully synced ${list.length} programs from Supabase Cloud');
+        }
       }
     } catch (e) {
       debugPrint('Notice fetching programs: $e');
@@ -177,13 +258,31 @@ class SupabaseService {
 
     // 4. Bundas Table
     try {
-      final resBundas = await _client!.from('bundas').select('*');
-      if (resBundas is List && resBundas.isNotEmpty) {
-        final list = resBundas
-            .map((e) => BundaModel.fromJson(Map<String, dynamic>.from(e)))
-            .toList();
-        LocalStore.instance.mergeCloudBundas(list);
-        debugPrint('Fetched ${list.length} bundas from Supabase Cloud');
+      List<dynamic> rawList = [];
+      if (_client != null) {
+        try {
+          final res = await _client!.from('bundas').select('*');
+          if (res is List) rawList = res;
+        } catch (_) {}
+      }
+      if (rawList.isEmpty) {
+        rawList = await _httpGetTable('bundas');
+      }
+
+      if (rawList.isNotEmpty) {
+        final list = <BundaModel>[];
+        for (var item in rawList) {
+          try {
+            final map = Map<String, dynamic>.from(item as Map);
+            list.add(BundaModel.fromJson(map));
+          } catch (e) {
+            debugPrint('Error parsing bunda row: $e');
+          }
+        }
+        if (list.isNotEmpty) {
+          LocalStore.instance.saveCloudBundas(list);
+          debugPrint('Successfully synced ${list.length} bundas from Supabase Cloud');
+        }
       }
     } catch (e) {
       debugPrint('Notice fetching bundas: $e');
@@ -191,14 +290,56 @@ class SupabaseService {
 
     // 5. Users & System Audit Logs Table
     try {
-      final resUsers = await _client!.from('users').select('*');
-      if (resUsers is List && resUsers.isNotEmpty) {
-        final filteredUsers = resUsers
-            .where((u) => u['username'] != 'SYSTEM_AUDIT_TRAIL')
-            .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
-            .toList();
-        LocalStore.instance.mergeCloudUsers(filteredUsers);
-        debugPrint('Fetched ${filteredUsers.length} users from Supabase Cloud');
+      List<dynamic> rawList = [];
+      if (_client != null) {
+        try {
+          final res = await _client!.from('users').select('*');
+          if (res is List) rawList = res;
+        } catch (_) {}
+      }
+      if (rawList.isEmpty) {
+        rawList = await _httpGetTable('users');
+      }
+
+      if (rawList.isNotEmpty) {
+        final userList = <UserModel>[];
+        for (var item in rawList) {
+          try {
+            final map = Map<String, dynamic>.from(item as Map);
+            final username = map['username']?.toString() ?? '';
+
+            if (username == 'SYSTEM_AUDIT_TRAIL') {
+              final nameVal = map['name']?.toString() ?? '';
+              if (nameVal.isNotEmpty) {
+                try {
+                  final decodedLogs = jsonDecode(nameVal);
+                  if (decodedLogs is List) {
+                    final cloudLogs = <LogModel>[];
+                    for (var l in decodedLogs) {
+                      if (l is Map) {
+                        cloudLogs.add(LogModel.fromJson(Map<String, dynamic>.from(l)));
+                      }
+                    }
+                    if (cloudLogs.isNotEmpty) {
+                      LocalStore.instance.saveCloudLogs(cloudLogs);
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('Error parsing audit logs: $e');
+                }
+              }
+            } else {
+              userList.add(UserModel.fromJson(map));
+            }
+          } catch (e) {
+            debugPrint('Error parsing user row: $e');
+          }
+        }
+
+        if (userList.isNotEmpty) {
+          LocalStore.instance.saveCloudUsers(userList);
+          debugPrint('Successfully synced ${userList.length} users from Supabase Cloud');
+        }
       }
     } catch (e) {
       debugPrint('Notice fetching users: $e');

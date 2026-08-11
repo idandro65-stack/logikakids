@@ -425,80 +425,104 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.syncLogsToCloud(_logs);
   }
 
-  // --- SMART HYBRID MERGE (COMBINES LOCAL SEED & CLOUD DATA PERFECTLY) ---
-  void mergeCloudChildren(List<ChildModel> cloudList) {
+  // --- SMART CLOUD DATA SYNC (100% PARITY WITH WEB APP) ---
+  void saveCloudChildren(List<ChildModel> cloudList) {
+    if (cloudList.isEmpty) return;
     final Map<String, ChildModel> map = {};
-    for (var c in _children) {
-      if (c.id.isNotEmpty) map[c.id] = c;
-    }
     for (var c in cloudList) {
       if (c.id.isNotEmpty) map[c.id] = c;
+    }
+    for (var c in _children) {
+      if (c.id.isNotEmpty && !map.containsKey(c.id)) {
+        map[c.id] = c;
+      }
     }
     _children = map.values.toList();
     _children.sort((a, b) => a.name.compareTo(b.name));
     _persist();
   }
+  void mergeCloudChildren(List<ChildModel> cloudList) => saveCloudChildren(cloudList);
 
-  void mergeCloudNotulens(List<NotulenModel> cloudList) {
+  void saveCloudNotulens(List<NotulenModel> cloudList) {
+    if (cloudList.isEmpty) return;
     final Map<String, NotulenModel> map = {};
-    for (var n in _notulens) {
-      if (n.id.isNotEmpty) map[n.id] = n;
-    }
     for (var n in cloudList) {
       if (n.id.isNotEmpty) map[n.id] = n;
+    }
+    for (var n in _notulens) {
+      if (n.id.isNotEmpty && !map.containsKey(n.id)) {
+        map[n.id] = n;
+      }
     }
     _notulens = map.values.toList();
     _notulens.sort((a, b) => b.date.compareTo(a.date));
     _persist();
   }
+  void mergeCloudNotulens(List<NotulenModel> cloudList) => saveCloudNotulens(cloudList);
 
-  void mergeCloudPrograms(List<ProgramModel> cloudList) {
+  void saveCloudPrograms(List<ProgramModel> cloudList) {
+    if (cloudList.isEmpty) return;
     final Map<String, ProgramModel> map = {};
-    for (var p in _programs) {
-      if (p.id.isNotEmpty) map[p.id] = p;
-    }
     for (var p in cloudList) {
       if (p.id.isNotEmpty) map[p.id] = p;
+    }
+    for (var p in _programs) {
+      if (p.id.isNotEmpty && !map.containsKey(p.id)) {
+        map[p.id] = p;
+      }
     }
     _programs = map.values.toList();
     _persist();
   }
+  void mergeCloudPrograms(List<ProgramModel> cloudList) => saveCloudPrograms(cloudList);
 
-  void mergeCloudBundas(List<BundaModel> cloudList) {
+  void saveCloudBundas(List<BundaModel> cloudList) {
+    if (cloudList.isEmpty) return;
     final Map<String, BundaModel> map = {};
-    for (var b in _bundas) {
-      if (b.id.isNotEmpty) map[b.id] = b;
-    }
     for (var b in cloudList) {
       if (b.id.isNotEmpty) map[b.id] = b;
+    }
+    for (var b in _bundas) {
+      if (b.id.isNotEmpty && !map.containsKey(b.id)) {
+        map[b.id] = b;
+      }
     }
     _bundas = map.values.toList();
     _persist();
   }
+  void mergeCloudBundas(List<BundaModel> cloudList) => saveCloudBundas(cloudList);
 
-  void mergeCloudUsers(List<UserModel> cloudList) {
+  void saveCloudUsers(List<UserModel> cloudList) {
+    if (cloudList.isEmpty) return;
     final Map<String, UserModel> map = {};
-    for (var u in _users) {
-      if (u.username.isNotEmpty) map[u.username] = u;
-    }
     for (var u in cloudList) {
       if (u.username.isNotEmpty) map[u.username] = u;
+    }
+    for (var u in _users) {
+      if (u.username.isNotEmpty && !map.containsKey(u.username)) {
+        map[u.username] = u;
+      }
     }
     _users = map.values.toList();
     _persist();
   }
+  void mergeCloudUsers(List<UserModel> cloudList) => saveCloudUsers(cloudList);
 
-  void mergeCloudLogs(List<LogModel> cloudLogs) {
+  void saveCloudLogs(List<LogModel> cloudLogs) {
+    if (cloudLogs.isEmpty) return;
     final Map<String, LogModel> map = {};
-    for (var l in _logs) {
-      if (l.id.isNotEmpty) map[l.id] = l;
-    }
     for (var l in cloudLogs) {
       if (l.id.isNotEmpty) map[l.id] = l;
+    }
+    for (var l in _logs) {
+      if (l.id.isNotEmpty && !map.containsKey(l.id)) {
+        map[l.id] = l;
+      }
     }
     _logs = map.values.toList();
     _logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     if (_logs.length > 200) _logs = _logs.sublist(0, 200);
     _persist();
   }
+  void mergeCloudLogs(List<LogModel> cloudLogs) => saveCloudLogs(cloudLogs);
 }
