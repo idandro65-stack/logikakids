@@ -18,6 +18,7 @@ class SupabaseService {
 
   SupabaseClient? _client;
   Timer? _autoSyncTimer;
+  DateTime? _lastFetchTime;
 
   Future<void> init() async {
     try {
@@ -31,9 +32,9 @@ class SupabaseService {
       // Immediate non-blocking cloud fetch & sync queue processing on launch
       unawaited(processAndFetchCloud());
 
-      // Smart Adaptive Background Sync (15-second battery & data saving interval)
+      // Smart Ultra-Efficient Background Sync (60-second interval to keep Egress < 50 MB / month)
       _autoSyncTimer?.cancel();
-      _autoSyncTimer = Timer.periodic(const Duration(seconds: 15), (_) => processAndFetchCloud());
+      _autoSyncTimer = Timer.periodic(const Duration(seconds: 60), (_) => processAndFetchCloud());
     } catch (e) {
       debugPrint('Supabase init notice: $e');
       unawaited(processAndFetchCloud());
@@ -44,7 +45,11 @@ class SupabaseService {
 
   Future<void> processAndFetchCloud() async {
     await processPendingSyncQueue();
-    await fetchCloudData();
+    
+    // Egress Guard: Only fetch if 45s passed since last fetch or queue was processed
+    if (_lastFetchTime == null || DateTime.now().difference(_lastFetchTime!).inSeconds >= 45) {
+      await fetchCloudData();
+    }
   }
 
   // Process offline pending sync items queue
@@ -86,10 +91,10 @@ class SupabaseService {
     }
   }
 
-  // Direct HTTP REST GET helper for fetching tables from Supabase
-  Future<List<dynamic>> _httpGetTable(String table) async {
+  // Direct HTTP REST GET helper for fetching tables from Supabase with custom query params
+  Future<List<dynamic>> _httpGetTable(String table, {String queryParams = 'select=*'}) async {
     try {
-      final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?select=*');
+      final uri = Uri.parse('${AppConfig.supabaseUrl}/rest/v1/$table?$queryParams');
       final httpClient = HttpClient();
       httpClient.connectionTimeout = const Duration(seconds: 8);
       final request = await httpClient.getUrl(uri);
@@ -219,8 +224,10 @@ class SupabaseService {
     }
   }
 
-  // Fetch all Cloud Tables independently and update Local Store with 100% parity
+  // Fetch Cloud Tables with Egress Optimization (Limit 150 & 60s Interval)
   Future<void> fetchCloudData() async {
+    _lastFetchTime = DateTime.now();
+
     // 1. Children Table
     try {
       List<dynamic> rawList = [];
@@ -252,17 +259,17 @@ class SupabaseService {
       debugPrint('Notice fetching children: $e');
     }
 
-    // 2. Notulens Table
+    // 2. Notulens Table (Optimized with order date.desc & limit 150 for minimal egress)
     try {
       List<dynamic> rawList = [];
       if (_client != null) {
         try {
-          final res = await _client!.from('notulens').select('*');
+          final res = await _client!.from('notulens').select('*').order('date', ascending: false).limit(150);
           if (res is List) rawList = res;
         } catch (_) {}
       }
       if (rawList.isEmpty) {
-        rawList = await _httpGetTable('notulens');
+        rawList = await _httpGetTable('notulens', queryParams: 'select=*&order=date.desc&limit=150');
       }
 
       if (rawList.isNotEmpty) {
