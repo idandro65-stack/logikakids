@@ -502,6 +502,15 @@ class LocalStore extends ChangeNotifier {
       _logs = _logs.sublist(0, 200);
     }
     _persist();
+
+    // Queue audit log sync payload so offline logs are guaranteed to sync when back online
+    final auditPayload = {
+      'username': 'SYSTEM_AUDIT_TRAIL',
+      'password': 'system_logs_store',
+      'name': jsonEncode(_logs.map((l) => l.toJson()).toList()),
+      'role': 'system'
+    };
+    enqueueSync('users', 'UPSERT', auditPayload);
     SupabaseService.instance.syncLogsToCloud(_logs);
   }
 

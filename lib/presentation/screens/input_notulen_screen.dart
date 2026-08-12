@@ -462,6 +462,9 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     final targetPoints = prog.targetPoints > 0 ? prog.targetPoints : 10;
     final indicatorsList = prog.indicators;
 
+    final allUnlockedIndices = List.generate(targetPoints, (i) => i + 1).where((idx) => !pastAchieved.contains(idx) && !pastAchieved.contains(idx - 1)).toList();
+    final isAllUnlockedChecked = allUnlockedIndices.isNotEmpty && allUnlockedIndices.every((idx) => currentSessionPoints.contains(idx) || currentSessionPoints.contains(idx - 1));
+
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: Column(
@@ -470,8 +473,82 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Checkpoints Indikator (Point Pencapaian):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-              Text('${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai', style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Checkpoints Indikator:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  Text('${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai', style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (!_pointsMap.containsKey(progKey)) {
+                      _pointsMap[progKey] = [];
+                    }
+                    if (!isAllUnlockedChecked) {
+                      for (var idx in allUnlockedIndices) {
+                        if (!_pointsMap[progKey]!.contains(idx)) {
+                          _pointsMap[progKey]!.add(idx);
+                        }
+                      }
+                      _statusMap[progKey] = 'S';
+                    } else {
+                      _pointsMap[progKey]!.clear();
+                      _statusMap[progKey] = 'BS';
+                    }
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isAllUnlockedChecked ? const Color(0xFFF43F5E).withValues(alpha: 0.1) : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: isAllUnlockedChecked ? const Color(0xFFF43F5E) : Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: Checkbox(
+                          value: isAllUnlockedChecked,
+                          activeColor: const Color(0xFFF43F5E),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (val) {
+                            setState(() {
+                              if (!_pointsMap.containsKey(progKey)) {
+                                _pointsMap[progKey] = [];
+                              }
+                              if (val == true) {
+                                for (var idx in allUnlockedIndices) {
+                                  if (!_pointsMap[progKey]!.contains(idx)) {
+                                    _pointsMap[progKey]!.add(idx);
+                                  }
+                                }
+                                _statusMap[progKey] = 'S';
+                              } else {
+                                _pointsMap[progKey]!.clear();
+                                _statusMap[progKey] = 'BS';
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Centang Semua (Tuntas)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: isAllUnlockedChecked ? const Color(0xFFBE123C) : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
