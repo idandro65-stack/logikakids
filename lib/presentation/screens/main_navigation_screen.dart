@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../app_config.dart';
 import '../../data/datasources/local_store.dart';
+import '../../data/datasources/supabase_service.dart';
 import 'dashboard_screen.dart';
 import 'anak_screen.dart';
 import 'program_screen.dart';
@@ -154,7 +156,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
-            onTap: (idx) => setState(() => _currentIndex = idx),
+            onTap: (idx) {
+              setState(() => _currentIndex = idx);
+              unawaited(SupabaseService.instance.processAndFetchCloud());
+            },
             type: BottomNavigationBarType.fixed,
             selectedItemColor: const Color(0xFFF43F5E),
             unselectedItemColor: Colors.grey,
