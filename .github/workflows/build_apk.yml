@@ -29,6 +29,12 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Ensure Release Keystore Exists
+        run: |
+          if [ ! -f android/app/key.jks ]; then
+            keytool -genkeypair -alias logikakids -keyalg RSA -keysize 2048 -validity 10000 -keystore android/app/key.jks -storepass logikakidskey -keypass logikakidskey -dname "CN=LogikaKids, OU=Klinik, O=LogikaKids, L=Indonesia, ST=Indonesia, C=ID"
+          fi
+
       - name: Install Dependencies
         run: flutter pub get
 
