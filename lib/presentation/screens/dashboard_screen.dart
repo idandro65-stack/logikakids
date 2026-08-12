@@ -357,6 +357,18 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildAdminLogWidget(BuildContext context, LocalStore store) {
+    String formatLogTimestamp(String timestamp) {
+      try {
+        final dt = DateTime.parse(timestamp);
+        final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        final mStr = months[dt.month - 1];
+        final timeStr = "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+        return "${dt.day} $mStr $timeStr";
+      } catch (_) {
+        return timestamp;
+      }
+    }
+
     final logs = store.logs.take(5).toList();
     return Card(
       color: const Color(0xFFFFF1F2),
@@ -394,8 +406,8 @@ class DashboardScreen extends StatelessWidget {
               ...logs.map((l) => Padding(
                     padding: const EdgeInsets.only(bottom: 6.0),
                     child: Text(
-                      '• ${l.userName}: ${l.description}',
-                      style: const TextStyle(fontSize: 12),
+                      '• [${formatLogTimestamp(l.timestamp)}] ${l.userName}: ${l.description}',
+                      style: const TextStyle(fontSize: 11),
                     ),
                   )),
           ],

@@ -1,9 +1,26 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../data/datasources/local_store.dart';
 import 'login_screen.dart';
 
 class SettingsDialog {
+  static String formatLogTimestamp(String timestamp) {
+    try {
+      final dt = DateTime.parse(timestamp);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      final mStr = months[dt.month - 1];
+      final timeStr = "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+      return "${dt.day} $mStr ${dt.year}, $timeStr";
+    } catch (_) {
+      return timestamp;
+    }
+  }
+
   static void show(BuildContext context) {
     final store = LocalStore.instance;
     final currentUser = store.currentUser;
@@ -67,7 +84,7 @@ class SettingsDialog {
               const SizedBox(height: 16),
 
               const Text(
-                'AKUN & KEAMANAN',
+                'PENGATURAN & BACKUP DATA',
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
               ),
               const SizedBox(height: 6),
@@ -83,8 +100,25 @@ class SettingsDialog {
                 },
               ),
 
-              // Admin Audit Log Option (Only for Admin)
-              if (isAdmin)
+              // Backup Data JSON (Available to All)
+              ListTile(
+                leading: const Icon(LucideIcons.downloadCloud, color: Color(0xFF0D9488)),
+                title: const Text('Backup Seluruh Data (JSON)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Simpan berkas cadangan data anak & notulen', style: TextStyle(fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _exportBackupJson(context, store);
+                },
+              ),
+
+              // Admin Options
+              if (isAdmin) ...[
+                const Divider(),
+                const Text(
+                  'KHUSUS ADMIN',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+                ),
+                const SizedBox(height: 6),
                 ListTile(
                   leading: const Icon(LucideIcons.scrollText, color: Color(0xFFF43F5E)),
                   title: const Text('Log Aktivitas Klinik (Audit Trail)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
@@ -94,20 +128,16 @@ class SettingsDialog {
                     _showAuditLogsModal(context, store);
                   },
                 ),
-
-              // Reset Data (STRICTLY ADMIN ONLY)
-              if (isAdmin)
                 ListTile(
-                  leading: const Icon(LucideIcons.rotateCcw, color: Colors.orange),
-                  title: const Text('Reset Data ke Demo Awal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Hapus notulen uji coba (Khusus Admin)', style: TextStyle(fontSize: 10)),
+                  leading: const Icon(LucideIcons.fileText, color: Color(0xFF2563EB)),
+                  title: const Text('Export Log Aktivitas (.txt)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Unduh catatan aktivitas staf ke file .txt (Admin)', style: TextStyle(fontSize: 10)),
                   onTap: () {
                     Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Hanya Admin yang berwenang melakukan reset data.')),
-                    );
+                    _exportAuditLogTxt(context, store);
                   },
                 ),
+              ],
 
               const Divider(),
               ListTile(
@@ -126,6 +156,79 @@ class SettingsDialog {
         );
       },
     );
+  }
+
+  static Future<void> _exportBackupJson(BuildContext context, LocalStore store) async {
+    try {
+      final now = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd_HHmm').format(now);
+      final filename = 'backup_logikakids_$dateStr.json';
+
+      final backupData = {
+        'app': 'Logika Kids',
+        'version': '1.0.0',
+        'exported_at': now.toIso8601String(),
+        'children': store.children.map((e) => e.toJson()).toList(),
+        'notulens': store.notulens.map((e) => e.toJson()).toList(),
+        'programs': store.programs.map((e) => e.toJson()).toList(),
+        'bundas': store.bundas.map((e) => e.toJson()).toList(),
+        'users': store.users.map((e) => e.toJson()).toList(),
+        'custom_rooms': store.allRooms,
+        'logs': store.logs.map((e) => e.toJson()).toList(),
+      };
+
+      final jsonString = jsonEncode(backupData);
+
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$filename';
+      final file = File(filePath);
+      await file.writeAsString(jsonString, encoding: utf8);
+
+      final xFile = XFile(filePath, mimeType: 'application/json', name: filename);
+      await Share.shareXFiles([xFile], text: 'Backup Seluruh Data Klinik Logika Kids (JSON)');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membuat backup data: $e')),
+        );
+      }
+    }
+  }
+
+  static Future<void> _exportAuditLogTxt(BuildContext context, LocalStore store) async {
+    try {
+      final now = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd_HHmm').format(now);
+      final filename = 'log_aktivitas_logikakids_$dateStr.txt';
+
+      final sb = StringBuffer();
+      sb.writeln('====================================================');
+      sb.writeln('LOG AKTIVITAS KLINIK LOGIKA KIDS (AUDIT TRAIL)');
+      sb.writeln('Tanggal Export: ${DateFormat('dd MMM yyyy, HH:mm').format(now)}');
+      sb.writeln('Total Log: ${store.logs.length} catatan aktivitas');
+      sb.writeln('====================================================\n');
+
+      for (int i = 0; i < store.logs.length; i++) {
+        final l = store.logs[i];
+        sb.writeln('${i + 1}. [${formatLogTimestamp(l.timestamp)}] ${l.userName} (${l.role.toUpperCase()})');
+        sb.writeln('   Tindakan: ${l.action}');
+        sb.writeln('   Deskripsi: ${l.description}\n');
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$filename';
+      final file = File(filePath);
+      await file.writeAsString(sb.toString(), encoding: utf8);
+
+      final xFile = XFile(filePath, mimeType: 'text/plain', name: filename);
+      await Share.shareXFiles([xFile], text: 'Export Log Aktivitas Klinik Logika Kids (.txt)');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal export log ke .txt: $e')),
+        );
+      }
+    }
   }
 
   static void _showChangePasswordModal(BuildContext context, LocalStore store) {
@@ -219,19 +322,32 @@ class SettingsDialog {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(LucideIcons.history, color: Color(0xFFF43F5E)),
-                  SizedBox(width: 8),
-                  Text(
-                    'Log Aktivitas Klinik (Audit Trail)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFBE123C)),
+                  const Row(
+                    children: [
+                      Icon(LucideIcons.history, color: Color(0xFFF43F5E)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Log Aktivitas (Audit Trail)',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFBE123C)),
+                      ),
+                    ],
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _exportAuditLogTxt(context, store);
+                    },
+                    icon: const Icon(LucideIcons.download, size: 16),
+                    label: const Text('Export .txt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 350,
+                height: 380,
                 child: logs.isEmpty
                     ? const Center(child: Text('Belum ada data log aktivitas', style: TextStyle(color: Colors.grey)))
                     : ListView.builder(
@@ -243,8 +359,14 @@ class SettingsDialog {
                             color: const Color(0xFFFFF1F2),
                             child: ListTile(
                               title: Text('${l.userName} (${l.role.toUpperCase()})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                              subtitle: Text(l.description, style: const TextStyle(fontSize: 11)),
-                              trailing: Text(l.timestamp.length >= 16 ? l.timestamp.substring(11, 16) : l.timestamp, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(l.description, style: const TextStyle(fontSize: 11)),
+                                  const SizedBox(height: 2),
+                                  Text(formatLogTimestamp(l.timestamp), style: const TextStyle(fontSize: 10, color: Color(0xFF991B1B), fontWeight: FontWeight.w600)),
+                                ],
+                              ),
                             ),
                           );
                         },
