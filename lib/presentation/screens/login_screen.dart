@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _userController,
                     decoration: InputDecoration(
                       labelText: 'Username / Akun Staf',
-                      hintText: 'Contoh: eka atau admin',
+                      hintText: 'Masukkan Nama Akun / Username',
                       prefixIcon: const Icon(LucideIcons.user),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
