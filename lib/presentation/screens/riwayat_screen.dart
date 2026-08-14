@@ -60,6 +60,277 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     }
   }
 
+  Future<void> _confirmDeleteSingleProgram(NotulenModel n, String progKey, LocalStore store) async {
+    final cleanName = store.resolveProgramName(progKey);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Hapus Program Ini?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text('Apakah Anda yakin ingin menghapus program \'$cleanName\' dari sesi tanggal ${n.date}? Hanya program ini saja yang akan dihapus dari notulen.', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus Program', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      store.deleteProgramFromNotulen(n.id, progKey);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Program \'$cleanName\' berhasil dihapus dari sesi')),
+        );
+      }
+    }
+  }
+
+  void _showQuickEditProgramModal(NotulenModel n, String progKey, LocalStore store) {
+    final cleanProgName = store.resolveProgramName(progKey);
+    final progObj = store.programs.firstWhere(
+      (p) => p.id == progKey || p.programName == progKey || p.programName.toLowerCase() == cleanProgName.toLowerCase(),
+      orElse: () => ProgramModel(id: '', room: '', programName: cleanProgName, indicators: [], targetPoints: 10),
+    );
+
+    final targetPoints = progObj.targetPoints > 0 ? progObj.targetPoints : 10;
+    final indicatorsList = progObj.indicators;
+
+    // Past achieved for this child excluding current notulen
+    final pastAchievedMap = store.getChildPastAchievedPoints(n.childName, excludeNotulenId: n.id);
+    final pastAchieved = pastAchievedMap[progKey] ?? pastAchievedMap[cleanProgName] ?? <int>{};
+
+    // Current points in this notulen
+    final rawPoints = n.pointsAchieved[progKey] ?? n.pointsAchieved[cleanProgName];
+    List<int> currentSessionPoints = [];
+    if (rawPoints != null && rawPoints is List) {
+      currentSessionPoints = (rawPoints as List).map((e) => (e as num).toInt()).toList();
+    }
+
+    String currentStatus = n.status[progKey] ?? n.status[cleanProgName] ?? 'BS';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final allUnlockedIndices = List.generate(targetPoints, (i) => i + 1).where((idx) => !pastAchieved.contains(idx)).toList();
+            final isAllUnlockedChecked = allUnlockedIndices.isNotEmpty && allUnlockedIndices.every((idx) => currentSessionPoints.contains(idx));
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              cleanProgName,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFBE123C)),
+                            ),
+                            Text(
+                              'Sesi ${n.childName} | Tanggal: ${n.date}',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(LucideIcons.x, color: Colors.grey),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16),
+
+                  // Header Checkbox Centang Semua
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Pencapaian: ${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          setModalState(() {
+                            if (!isAllUnlockedChecked) {
+                              for (var idx in allUnlockedIndices) {
+                                if (!currentSessionPoints.contains(idx)) {
+                                  currentSessionPoints.add(idx);
+                                }
+                              }
+                              currentStatus = 'S';
+                            } else {
+                              currentSessionPoints.clear();
+                              currentStatus = 'BS';
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isAllUnlockedChecked ? const Color(0xFFF43F5E).withValues(alpha: 0.1) : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: isAllUnlockedChecked ? const Color(0xFFF43F5E) : Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: Checkbox(
+                                  value: isAllUnlockedChecked,
+                                  activeColor: const Color(0xFFF43F5E),
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  onChanged: (val) {
+                                    setModalState(() {
+                                      if (val == true) {
+                                        for (var idx in allUnlockedIndices) {
+                                          if (!currentSessionPoints.contains(idx)) {
+                                            currentSessionPoints.add(idx);
+                                          }
+                                        }
+                                        currentStatus = 'S';
+                                      } else {
+                                        currentSessionPoints.clear();
+                                        currentStatus = 'BS';
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Centang Semua (Tuntas)',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: isAllUnlockedChecked ? const Color(0xFFBE123C) : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Indicator Checkpoints List
+                  SizedBox(
+                    height: 260,
+                    child: ListView.builder(
+                      itemCount: targetPoints,
+                      itemBuilder: (ctx, i) {
+                        final pointNum = i + 1;
+                        final isPastLocked = pastAchieved.contains(pointNum);
+                        final isCurrentChecked = currentSessionPoints.contains(pointNum);
+                        final labelText = (indicatorsList.length > i) ? '$pointNum. ${indicatorsList[i]}' : 'Poin Checkpoint $pointNum';
+
+                        if (isPastLocked) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.green.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(LucideIcons.checkSquare, size: 14, color: Colors.green),
+                                const SizedBox(width: 6),
+                                Expanded(child: Text(labelText, style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold))),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.green.shade200, borderRadius: BorderRadius.circular(4)),
+                                  child: const Text('✓ Tercapai (Sesi Lalu)', style: TextStyle(fontSize: 9, color: Colors.green, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return CheckboxListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(labelText, style: const TextStyle(fontSize: 11)),
+                          value: isCurrentChecked,
+                          activeColor: const Color(0xFFF43F5E),
+                          onChanged: (val) {
+                            setModalState(() {
+                              if (val == true) {
+                                if (!currentSessionPoints.contains(pointNum)) {
+                                  currentSessionPoints.add(pointNum);
+                                }
+                              } else {
+                                currentSessionPoints.remove(pointNum);
+                              }
+
+                              final totalNow = currentSessionPoints.length + pastAchieved.length;
+                              currentStatus = (totalNow >= targetPoints) ? 'S' : 'BS';
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        store.quickUpdateNotulenProgram(n.id, progKey, currentSessionPoints, currentStatus);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Perubahan program \'$cleanProgName\' berhasil disimpan!')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF43F5E)),
+                      icon: const Icon(LucideIcons.check, color: Colors.white, size: 16),
+                      label: const Text('Simpan Perubahan Program', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -99,18 +370,13 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             }
           }
 
-          // 4. Search Bar Filter
-          if (_searchController.text.isNotEmpty) {
-            final query = _searchController.text.toLowerCase();
-            final matchChild = n.childName.toLowerCase().contains(query);
-            final matchRoom = n.room.toLowerCase().contains(query);
-            final matchNotes = n.notes.toLowerCase().contains(query);
-            final matchProg = n.programsSelected.any((p) {
-              final clean = store.resolveProgramName(p);
-              return clean.toLowerCase().contains(query);
-            });
-
-            if (!matchChild && !matchRoom && !matchNotes && !matchProg) continue;
+          // 4. Search Filter
+          final searchLower = _searchController.text.trim().toLowerCase();
+          if (searchLower.isNotEmpty) {
+            final matchesChild = n.childName.toLowerCase().contains(searchLower);
+            final matchesRoom = n.room.toLowerCase().contains(searchLower);
+            final matchesProgram = n.programsSelected.any((p) => store.resolveProgramName(p).toLowerCase().contains(searchLower));
+            if (!matchesChild && !matchesRoom && !matchesProgram) continue;
           }
 
           if (!groupedByChild.containsKey(n.childName)) {
@@ -119,33 +385,34 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           groupedByChild[n.childName]!.add(n);
         }
 
-        var childNames = groupedByChild.keys.toList();
+        final childNames = groupedByChild.keys.toList();
 
-        // Sorting Logic (Explicit Date & Name Sorting)
-        if (_sortBy == 'date-desc') {
-          childNames.sort((a, b) {
-            final latestA = groupedByChild[a]!.first.date;
-            final latestB = groupedByChild[b]!.first.date;
-            return latestB.compareTo(latestA);
-          });
-        } else if (_sortBy == 'date-asc') {
-          childNames.sort((a, b) {
-            final latestA = groupedByChild[a]!.first.date;
-            final latestB = groupedByChild[b]!.first.date;
-            return latestA.compareTo(latestB);
-          });
-        } else if (_sortBy == 'name-asc') {
+        // Sort Children Names
+        if (_sortBy == 'name-asc') {
           childNames.sort((a, b) => a.compareTo(b));
         } else if (_sortBy == 'name-desc') {
           childNames.sort((a, b) => b.compareTo(a));
+        } else if (_sortBy == 'date-desc') {
+          childNames.sort((a, b) {
+            final dateA = groupedByChild[a]!.first.date;
+            final dateB = groupedByChild[b]!.first.date;
+            return dateB.compareTo(dateA);
+          });
+        } else if (_sortBy == 'date-asc') {
+          childNames.sort((a, b) {
+            final dateA = groupedByChild[a]!.first.date;
+            final dateB = groupedByChild[b]!.first.date;
+            return dateA.compareTo(dateB);
+          });
         }
 
         return Scaffold(
           body: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Search Bar + Date/Name Sort Dropdown
+                // 1. Search Bar & Sort Toolbar
                 Row(
                   children: [
                     Expanded(
@@ -251,7 +518,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: InkWell(
                         onTap: () async {
@@ -271,7 +538,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(LucideIcons.calendarCheck, size: 14, color: Color(0xFFF43F5E)),
+                              const Icon(LucideIcons.calendar, size: 14, color: Color(0xFFF43F5E)),
                               const SizedBox(width: 4),
                               Text(
                                 _dateTo != null
@@ -284,18 +551,14 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         ),
                       ),
                     ),
-                    if (_dateFrom != null || _dateTo != null) ...[
-                      const SizedBox(width: 4),
+                    if (_dateFrom != null || _dateTo != null)
                       IconButton(
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
-                        icon: const Icon(LucideIcons.x, size: 16, color: Colors.red),
+                        icon: const Icon(LucideIcons.xCircle, color: Colors.grey, size: 20),
                         onPressed: () => setState(() {
                           _dateFrom = null;
                           _dateTo = null;
                         }),
                       ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -449,7 +712,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Line: Date | Bunda | Edit | Hapus
+          // Header Line: Date | Bunda | Edit | Hapus (Whole Session)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
@@ -483,7 +746,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       icon: const Icon(LucideIcons.edit2, size: 10),
-                      label: const Text('Edit', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      label: const Text('Edit Full', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 4),
                     ElevatedButton.icon(
@@ -496,7 +759,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       icon: const Icon(LucideIcons.trash2, size: 10),
-                      label: const Text('Hapus', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      label: const Text('Hapus Sesi', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -547,23 +810,23 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFFECDD3)),
+                      border: Border.all(color: roomColor.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(LucideIcons.pin, size: 12, color: Color(0xFFBE123C)),
+                        Icon(LucideIcons.pin, size: 12, color: roomColor),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             'Catatan Perkembangan: "${n.notes}"',
-                            style: const TextStyle(fontSize: 11, color: Color(0xFFBE123C), fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 11, color: roomColor, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
                     ),
                   ),
 
-                // Program Items Details (Matching Web Screenshot 100%)
+                // Individual Program Items Cards with Direct Edit & Delete Actions
                 ...n.programsSelected.map((progId) {
                   final cleanProgName = store.resolveProgramName(progId);
                   final progObj = store.programs.firstWhere(
@@ -595,8 +858,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   List<int> belumNumbers = [];
 
                   for (int i = 1; i <= totalTarget; i++) {
-                    // 0-based index check (i - 1) matching web app 100%!
-                    if (achievedIndices.contains(i - 1)) {
+                    if (achievedIndices.contains(i) || achievedIndices.contains(i - 1)) {
                       tercapaiNumbers.add(i);
                     } else {
                       belumNumbers.add(i);
@@ -611,47 +873,102 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade200),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Program Name & Status Badge
+                        // Program Name & Direct Action Buttons (Edit Program & Hapus Program)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              cleanProgName,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
+                            Expanded(
+                              child: Text(
+                                cleanProgName,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isTuntas ? LucideIcons.checkCircle2 : LucideIcons.rotateCcw,
-                                    size: 10,
-                                    color: statusColor,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    statusLabel,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: statusColor,
+                            ),
+                            Row(
+                              children: [
+                                // Edit Single Program Button
+                                InkWell(
+                                  onTap: () => _showQuickEditProgramModal(n, progId, store),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade50,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.blue.shade200),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(LucideIcons.edit3, size: 10, color: Colors.blue),
+                                        SizedBox(width: 2),
+                                        Text('Edit', style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.bold)),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 4),
+                                // Delete Single Program Button
+                                InkWell(
+                                  onTap: () => _confirmDeleteSingleProgram(n, progId, store),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade50,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.red.shade200),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(LucideIcons.trash2, size: 10, color: Colors.red),
+                                        SizedBox(width: 2),
+                                        Text('Hapus', style: TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // Status Badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        isTuntas ? LucideIcons.checkCircle2 : LucideIcons.rotateCcw,
+                                        size: 10,
+                                        color: statusColor,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        statusLabel,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: statusColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
 
                         // Checkpoint Tercapai Line
                         Row(

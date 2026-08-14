@@ -516,6 +516,72 @@ class LocalStore extends ChangeNotifier {
     SupabaseService.instance.deleteFromCloud('notulens', id);
   }
 
+  void deleteProgramFromNotulen(String notulenId, String progKey) {
+    final idx = _notulens.indexWhere((n) => n.id == notulenId);
+    if (idx != -1) {
+      final old = _notulens[idx];
+      final cleanName = resolveProgramName(progKey);
+      final updatedPrograms = List<String>.from(old.programsSelected)
+        ..removeWhere((p) => p == progKey || resolveProgramName(p) == cleanName || p.toLowerCase() == progKey.toLowerCase());
+
+      if (updatedPrograms.isEmpty) {
+        deleteNotulen(notulenId);
+      } else {
+        final updatedPoints = Map<String, List<int>>.from(old.pointsAchieved)..remove(progKey)..remove(cleanName);
+        final updatedStatus = Map<String, String>.from(old.status)..remove(progKey)..remove(cleanName);
+
+        final updatedNotulen = NotulenModel(
+          id: old.id,
+          date: old.date,
+          childName: old.childName,
+          room: old.room,
+          notulen: old.notulen,
+          programsSelected: updatedPrograms,
+          pointsAchieved: updatedPoints,
+          status: updatedStatus,
+          notes: old.notes,
+        );
+        _notulens[idx] = updatedNotulen;
+        addLog('UPDATE_NOTULEN', 'Menghapus program \'$cleanName\' dari notulen ${old.childName} (${old.date})');
+        enqueueSync('notulens', 'UPSERT', updatedNotulen.toJson());
+        _persist();
+        SupabaseService.instance.syncToCloud('notulens', updatedNotulen.toJson());
+      }
+    }
+  }
+
+  void quickUpdateNotulenProgram(String notulenId, String progKey, List<int> pointsList, String statusVal) {
+    final idx = _notulens.indexWhere((n) => n.id == notulenId);
+    if (idx != -1) {
+      final old = _notulens[idx];
+      final cleanName = resolveProgramName(progKey);
+      final updatedPoints = Map<String, List<int>>.from(old.pointsAchieved);
+      final updatedStatus = Map<String, String>.from(old.status);
+
+      updatedPoints[progKey] = pointsList;
+      updatedPoints[cleanName] = pointsList;
+      updatedStatus[progKey] = statusVal;
+      updatedStatus[cleanName] = statusVal;
+
+      final updatedNotulen = NotulenModel(
+        id: old.id,
+        date: old.date,
+        childName: old.childName,
+        room: old.room,
+        notulen: old.notulen,
+        programsSelected: old.programsSelected,
+        pointsAchieved: updatedPoints,
+        status: updatedStatus,
+        notes: old.notes,
+      );
+      _notulens[idx] = updatedNotulen;
+      addLog('UPDATE_NOTULEN', 'Memperbarui poin program \'$cleanName\' notulen ${old.childName} (${old.date})');
+      enqueueSync('notulens', 'UPSERT', updatedNotulen.toJson());
+      _persist();
+      SupabaseService.instance.syncToCloud('notulens', updatedNotulen.toJson());
+    }
+  }
+
   void addLog(String action, String description) {
     final newLog = LogModel(
       id: 'log_${DateTime.now().millisecondsSinceEpoch}',
