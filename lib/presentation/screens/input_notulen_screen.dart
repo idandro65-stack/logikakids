@@ -462,8 +462,8 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     final targetPoints = prog.targetPoints > 0 ? prog.targetPoints : 10;
     final indicatorsList = prog.indicators;
 
-    final allUnlockedIndices = List.generate(targetPoints, (i) => i + 1).where((idx) => !pastAchieved.contains(idx) && !pastAchieved.contains(idx - 1)).toList();
-    final isAllUnlockedChecked = allUnlockedIndices.isNotEmpty && allUnlockedIndices.every((idx) => currentSessionPoints.contains(idx) || currentSessionPoints.contains(idx - 1));
+    final allUnlockedIndices = List.generate(targetPoints, (i) => i + 1).where((idx) => !pastAchieved.contains(idx)).toList();
+    final isAllUnlockedChecked = allUnlockedIndices.isNotEmpty && allUnlockedIndices.every((idx) => currentSessionPoints.contains(idx));
 
     return Padding(
       padding: const EdgeInsets.all(12.0),
@@ -553,11 +553,11 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
           ),
           const SizedBox(height: 8),
 
-          // Render 10 Checkpoints / Indicators
+          // Render Checkpoints / Indicators
           ...List.generate(targetPoints, (i) {
             final pointNum = i + 1; // 1-based indicator number
-            final isPastLocked = pastAchieved.contains(pointNum) || pastAchieved.contains(i);
-            final isCurrentChecked = currentSessionPoints.contains(pointNum) || currentSessionPoints.contains(i);
+            final isPastLocked = pastAchieved.contains(pointNum);
+            final isCurrentChecked = currentSessionPoints.contains(pointNum);
 
             final labelText = (indicatorsList.length > i) ? '$pointNum. ${indicatorsList[i]}' : 'Poin Checkpoint $pointNum';
 
@@ -610,7 +610,6 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                     }
                   } else {
                     _pointsMap[progKey]!.remove(pointNum);
-                    _pointsMap[progKey]!.remove(i);
                   }
 
                   final totalNow = _pointsMap[progKey]!.length + pastAchieved.length;

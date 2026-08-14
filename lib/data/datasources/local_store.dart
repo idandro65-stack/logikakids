@@ -305,18 +305,46 @@ class LocalStore extends ChangeNotifier {
   }
 
   String resolveProgramName(String idOrName) {
-    if (idOrName.trim().isEmpty) return '';
+    final clean = idOrName.trim();
+    if (clean.isEmpty) return '';
+
+    // 1. Direct match by id or programName (case-insensitive)
     final match = _programs.firstWhere(
-      (p) => p.id == idOrName || p.programName == idOrName,
+      (p) => p.id.toLowerCase() == clean.toLowerCase() || p.programName.toLowerCase() == clean.toLowerCase(),
       orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10),
     );
     if (match.programName.isNotEmpty) {
       return match.programName;
     }
-    if (idOrName.startsWith('SUB_')) {
-      return 'Program #${idOrName.substring(4, idOrName.length > 10 ? 10 : idOrName.length).toUpperCase()}';
+
+    // 2. Partial ID match
+    final partialMatch = _programs.firstWhere(
+      (p) => p.id.toLowerCase().contains(clean.toLowerCase()) || clean.toLowerCase().contains(p.id.toLowerCase()),
+      orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10),
+    );
+    if (partialMatch.programName.isNotEmpty) {
+      return partialMatch.programName;
     }
-    return idOrName;
+
+    // 3. Match against InitialSeedData programs
+    final seedMatch = InitialSeedData.programs.firstWhere(
+      (p) => p.id.toLowerCase() == clean.toLowerCase() || p.programName.toLowerCase() == clean.toLowerCase() || p.id.toLowerCase().contains(clean.toLowerCase()) || clean.toLowerCase().contains(p.id.toLowerCase()),
+      orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10),
+    );
+    if (seedMatch.programName.isNotEmpty) {
+      return seedMatch.programName;
+    }
+
+    // 4. Fallback if clean starts with SUB_ or contains hex ID
+    if (clean.startsWith('SUB_') || clean.startsWith('sub_')) {
+      final subClean = clean.substring(4);
+      if (subClean.length <= 8 && RegExp(r'^[a-fA-F0-9]+$').hasMatch(subClean)) {
+        return 'Program Terapi ($subClean)';
+      }
+      return subClean;
+    }
+
+    return clean;
   }
 
   bool updatePassword(String username, String newPassword) {
