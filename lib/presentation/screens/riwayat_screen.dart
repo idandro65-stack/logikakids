@@ -858,7 +858,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   List<int> belumNumbers = [];
 
                   for (int i = 1; i <= totalTarget; i++) {
-                    if (achievedIndices.contains(i) || achievedIndices.contains(i - 1)) {
+                    if (achievedIndices.contains(i)) {
                       tercapaiNumbers.add(i);
                     } else {
                       belumNumbers.add(i);
