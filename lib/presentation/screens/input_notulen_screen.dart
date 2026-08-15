@@ -430,25 +430,40 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Save Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: _saveNotulen,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF43F5E),
-                ),
-                icon: Icon(isEdit ? LucideIcons.save : LucideIcons.check, color: Colors.white),
-                label: Text(
-                  isEdit ? 'Simpan Perubahan Notulen' : 'Simpan Notulen Sesi',
-                  style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        bottom: true,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, -3),
+              ),
+            ],
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: _saveNotulen,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF43F5E),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: Icon(isEdit ? LucideIcons.save : LucideIcons.check, color: Colors.white, size: 18),
+              label: Text(
+                isEdit ? 'Simpan Perubahan Notulen' : 'Simpan Notulen Sesi',
+                style: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

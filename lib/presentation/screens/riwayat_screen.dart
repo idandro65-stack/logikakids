@@ -402,12 +402,27 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           groupedByChild[n.childName]!.add(n);
         }
 
-        // 1. First sort notulens inside each child group: date desc, then timestamp/id desc
+        int extractTimestamp(NotulenModel n) {
+          final match = RegExp(r'\d{10,14}').firstMatch(n.id);
+          if (match != null) {
+            final parsed = int.tryParse(match.group(0)!);
+            if (parsed != null) return parsed;
+          }
+          final idx = notulens.indexOf(n);
+          if (idx != -1) {
+            return 1000000 - idx;
+          }
+          return 0;
+        }
+
+        // 1. First sort notulens inside each child group: date desc, then timestamp desc
         groupedByChild.forEach((cName, nList) {
           nList.sort((a, b) {
             final dateComp = b.date.compareTo(a.date);
             if (dateComp != 0) return dateComp;
-            return b.id.compareTo(a.id);
+            final tsA = extractTimestamp(a);
+            final tsB = extractTimestamp(b);
+            return tsB.compareTo(tsA);
           });
         });
 
@@ -424,7 +439,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             final notulenB = groupedByChild[b]!.first;
             final dateComp = notulenB.date.compareTo(notulenA.date);
             if (dateComp != 0) return dateComp;
-            return notulenB.id.compareTo(notulenA.id);
+            final tsA = extractTimestamp(notulenA);
+            final tsB = extractTimestamp(notulenB);
+            return tsB.compareTo(tsA);
           });
         } else if (_sortBy == 'date-asc') {
           childNames.sort((a, b) {
@@ -432,7 +449,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             final notulenB = groupedByChild[b]!.last;
             final dateComp = notulenA.date.compareTo(notulenB.date);
             if (dateComp != 0) return dateComp;
-            return notulenA.id.compareTo(notulenB.id);
+            final tsA = extractTimestamp(notulenA);
+            final tsB = extractTimestamp(notulenB);
+            return tsA.compareTo(tsB);
           });
         }
 
