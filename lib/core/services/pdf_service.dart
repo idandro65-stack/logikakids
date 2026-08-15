@@ -203,18 +203,18 @@ class PdfService {
     buffer.writeln('=====================================');
 
     for (var n in notulens.take(5)) {
-      buffer.writeln('📅 Tanggal: *${n.date}* (${n.room})');
-      buffer.writeln('👩‍🏫 Bunda Terapis: ${n.notulen}');
+      buffer.writeln('Tanggal: *${n.date}* (${n.room})');
+      buffer.writeln('Bunda Terapis: ${n.notulen}');
       if (n.programsSelected.isNotEmpty) {
-        buffer.writeln('🎯 Program:');
+        buffer.writeln('Program:');
         for (var p in n.programsSelected) {
           final cleanP = LocalStore.instance.resolveProgramName(p);
           final statusVal = n.status[p] ?? n.status[cleanP] ?? 'S';
           final isTuntas = statusVal == 'tuntas' || statusVal == 'S' || statusVal == 'K';
-          buffer.writeln('  - $cleanP : ${isTuntas ? '✓ Tuntas' : '⏳ Berlangsung'}');
+          buffer.writeln('  - $cleanP : ${isTuntas ? '[Tuntas]' : '[Berlangsung]'}');
         }
       }
-      if (n.notes.isNotEmpty) buffer.writeln('📝 Catatan: "${n.notes}"');
+      if (n.notes.isNotEmpty) buffer.writeln('Catatan: "${n.notes}"');
       buffer.writeln('-------------------------------------');
     }
     buffer.writeln('_Logika Kids - Notulen Terapi Harian Anak_');

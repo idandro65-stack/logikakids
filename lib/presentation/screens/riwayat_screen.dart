@@ -116,10 +116,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     // Current points in this notulen
     final rawPoints = n.pointsAchieved[progKey] ?? n.pointsAchieved[cleanProgName];
     List<int> currentSessionPoints = [];
-    if (rawPoints != null && rawPoints is List) {
-      for (var e in rawPoints) {
-        if (e is num) currentSessionPoints.add(e.toInt());
-      }
+    if (rawPoints != null) {
+      currentSessionPoints = List<int>.from(rawPoints);
     }
 
     String currentStatus = n.status[progKey] ?? n.status[cleanProgName] ?? 'BS';
@@ -276,7 +274,14 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(color: Colors.green.shade200, borderRadius: BorderRadius.circular(4)),
-                                  child: const Text('✓ Tercapai (Sesi Lalu)', style: TextStyle(fontSize: 9, color: Colors.green, fontWeight: FontWeight.bold)),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(LucideIcons.check, size: 10, color: Colors.green),
+                                      SizedBox(width: 2),
+                                      Text('Tercapai (Sesi Lalu)', style: TextStyle(fontSize: 9, color: Colors.green, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -342,7 +347,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         final store = LocalStore.instance;
         final notulens = store.notulens;
 
-        // Group Notulens by Child Name with Comprehensive Web Filters
+        // Group Notulens by Child Name with Comprehensive Filters
         Map<String, List<NotulenModel>> groupedByChild = {};
 
         for (var n in notulens) {
@@ -397,24 +402,37 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           groupedByChild[n.childName]!.add(n);
         }
 
+        // 1. First sort notulens inside each child group: date desc, then timestamp/id desc
+        groupedByChild.forEach((cName, nList) {
+          nList.sort((a, b) {
+            final dateComp = b.date.compareTo(a.date);
+            if (dateComp != 0) return dateComp;
+            return b.id.compareTo(a.id);
+          });
+        });
+
         final childNames = groupedByChild.keys.toList();
 
-        // Sort Children Names
+        // 2. Sort Children Names with High Precision (Newest input always on top for date-desc)
         if (_sortBy == 'name-asc') {
-          childNames.sort((a, b) => a.compareTo(b));
+          childNames.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
         } else if (_sortBy == 'name-desc') {
-          childNames.sort((a, b) => b.compareTo(a));
+          childNames.sort((a, b) => b.toLowerCase().compareTo(a.toLowerCase()));
         } else if (_sortBy == 'date-desc') {
           childNames.sort((a, b) {
-            final dateA = groupedByChild[a]!.first.date;
-            final dateB = groupedByChild[b]!.first.date;
-            return dateB.compareTo(dateA);
+            final notulenA = groupedByChild[a]!.first;
+            final notulenB = groupedByChild[b]!.first;
+            final dateComp = notulenB.date.compareTo(notulenA.date);
+            if (dateComp != 0) return dateComp;
+            return notulenB.id.compareTo(notulenA.id);
           });
         } else if (_sortBy == 'date-asc') {
           childNames.sort((a, b) {
-            final dateA = groupedByChild[a]!.first.date;
-            final dateB = groupedByChild[b]!.first.date;
-            return dateA.compareTo(dateB);
+            final notulenA = groupedByChild[a]!.last;
+            final notulenB = groupedByChild[b]!.last;
+            final dateComp = notulenA.date.compareTo(notulenB.date);
+            if (dateComp != 0) return dateComp;
+            return notulenA.id.compareTo(notulenB.id);
           });
         }
 
@@ -509,7 +527,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // 3. Specific Program Dropdown Filter (New Feature!)
+                // 3. Specific Program Dropdown Filter (Clean without emojis)
                 DropdownButtonFormField<String>(
                   value: availablePrograms.contains(_programFilter) ? _programFilter : 'all',
                   decoration: InputDecoration(
@@ -521,7 +539,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   ),
                   isExpanded: true,
                   items: [
-                    const DropdownMenuItem(value: 'all', child: Text('🎯 Semua Program Terapi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+                    const DropdownMenuItem(value: 'all', child: Text('Semua Program Terapi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
                     ...availablePrograms.map(
                       (p) => DropdownMenuItem(
                         value: p,
@@ -619,7 +637,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Riwayat Cards List (100% Matching Web Layout Screenshot!)
+                // Riwayat Cards List
                 Expanded(
                   child: childNames.isEmpty
                       ? const Center(
@@ -633,7 +651,6 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                           itemBuilder: (ctx, idx) {
                             final childName = childNames[idx];
                             final childNotulens = groupedByChild[childName]!;
-                            childNotulens.sort((a, b) => b.date.compareTo(a.date));
 
                             final childObj = store.children.firstWhere(
                               (c) => c.name.toLowerCase() == childName.toLowerCase(),
@@ -717,9 +734,15 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      '📋 Riwayat Sesi Terapi: ${childNotulens.length} Sesi Tercatat',
-                                      style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                                    Row(
+                                      children: [
+                                        const Icon(LucideIcons.history, size: 13, color: Colors.grey),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Riwayat Sesi Terapi: ${childNotulens.length} Sesi Tercatat',
+                                          style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                                        ),
+                                      ],
                                     ),
                                     const Divider(height: 16),
 
@@ -757,6 +780,32 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   Widget _buildSessionCard(BuildContext context, NotulenModel n, LocalStore store) {
     final primaryRoom = n.room.split(';').first.trim();
     final roomColor = _getRoomColor(primaryRoom);
+
+    // Determine which programs should be displayed on this card:
+    // If a specific Program Filter or search by program is active, only show the matching program!
+    final searchLower = _searchController.text.trim().toLowerCase();
+    final isProgramFilterActive = _programFilter != 'all';
+    final isTextProgramSearch = searchLower.isNotEmpty &&
+        !n.childName.toLowerCase().contains(searchLower) &&
+        !n.room.toLowerCase().contains(searchLower);
+
+    List<String> displayedPrograms = n.programsSelected;
+
+    if (isProgramFilterActive) {
+      displayedPrograms = displayedPrograms.where((p) {
+        final clean = store.resolveProgramName(p).toLowerCase();
+        return p.toLowerCase() == _programFilter.toLowerCase() || clean == _programFilter.toLowerCase();
+      }).toList();
+    } else if (isTextProgramSearch) {
+      displayedPrograms = displayedPrograms.where((p) {
+        final clean = store.resolveProgramName(p).toLowerCase();
+        return clean.contains(searchLower) || p.toLowerCase().contains(searchLower);
+      }).toList();
+    }
+
+    if (displayedPrograms.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -882,8 +931,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     ),
                   ),
 
-                // Individual Program Items Cards with Cumulative Calculation (Option B)
-                ...n.programsSelected.map((progId) {
+                // Individual Program Items Cards with Focus & Cumulative Calculation
+                ...displayedPrograms.map((progId) {
                   final cleanProgName = store.resolveProgramName(progId);
                   final progObj = store.programs.firstWhere(
                     (p) => p.id == progId || p.programName == progId || p.programName.toLowerCase() == cleanProgName.toLowerCase(),
@@ -897,10 +946,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   // 1. Calculate Cumulative Achieved Points (Option B)
                   final rawThisSession = n.pointsAchieved[progId] ?? n.pointsAchieved[cleanProgName];
                   final Set<int> allAchievedSet = {};
-                  if (rawThisSession != null && rawThisSession is List) {
-                    for (var e in rawThisSession) {
-                      if (e is num) allAchievedSet.add(e.toInt());
-                    }
+                  if (rawThisSession != null) {
+                    allAchievedSet.addAll(rawThisSession);
                   }
 
                   final pastAchievedMap = store.getChildPastAchievedPoints(n.childName, excludeNotulenId: n.id);
@@ -1023,7 +1070,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('✓ Tercapai: ', style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+                            const Icon(LucideIcons.checkCheck, size: 13, color: Colors.green),
+                            const SizedBox(width: 4),
+                            const Text('Tercapai: ', style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
                             Expanded(
                               child: Text(
                                 tercapaiStr,
@@ -1032,12 +1081,15 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 3),
 
                         // Checkpoint Belum Line
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('✕ Belum: ', style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)),
+                            const Icon(LucideIcons.xCircle, size: 13, color: Colors.red),
+                            const SizedBox(width: 4),
+                            const Text('Belum: ', style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)),
                             Expanded(
                               child: Text(
                                 belumStr,
