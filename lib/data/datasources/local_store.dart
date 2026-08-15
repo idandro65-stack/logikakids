@@ -177,6 +177,12 @@ class LocalStore extends ChangeNotifier {
     }
     if (_programs.isEmpty) {
       _programs = List.from(InitialSeedData.programs);
+    } else {
+      for (var seedP in InitialSeedData.programs) {
+        if (!_programs.any((p) => p.id.toLowerCase() == seedP.id.toLowerCase() || p.programName.toLowerCase() == seedP.programName.toLowerCase())) {
+          _programs.add(seedP);
+        }
+      }
     }
     if (_bundas.isEmpty) {
       _bundas = List.from(InitialSeedData.bundas);
@@ -280,16 +286,16 @@ class LocalStore extends ChangeNotifier {
     final cleanPw = password.trim();
 
     final user = _users.firstWhere(
-      (u) {
-        final uClean = u.username.toLowerCase().replaceAll('bunda.', '').replaceAll(' ', '');
-        return (uClean == cleanUser || u.username.toLowerCase() == username.trim().toLowerCase()) && u.password == cleanPw;
-      },
-      orElse: () => UserModel(username: '', password: '', name: '', role: ''),
+      (u) =>
+          u.username.trim().toLowerCase() == cleanUser &&
+          u.password.trim() == cleanPw,
+      orElse: () =>
+          UserModel(username: '', password: '', name: '', role: 'staf'),
     );
 
     if (user.username.isNotEmpty) {
       currentUser = user;
-      addLog('AUTH_LOGIN', '${user.name} (${user.role.toUpperCase()}) berhasil masuk ke aplikasi');
+      addLog('AUTH_LOGIN', '${user.name} (${user.role.toUpperCase()}) berhasil masuk');
       _persist();
       return true;
     }
@@ -304,13 +310,37 @@ class LocalStore extends ChangeNotifier {
     _persist();
   }
 
+  static const Map<String, String> _legacyProgramMap = {
+    '3c57085dee644f7f9f534cdb77eaac85': 'Sensory Card Lanjutan',
+    'sub_3c57085dee644f7f9f534cdb77eaac85': 'Sensory Card Lanjutan',
+    '36dace8c183a497aa3dd7faf41dc9f35': 'Hand Eye Coord (Motorik Halus)',
+    'sub_36dace8c183a497aa3dd7faf41dc9f35': 'Hand Eye Coord (Motorik Halus)',
+    '36aa78ecd5df4505b9611f7ad9b2db82': 'Vestibular Terapi (SI)',
+    'sub_36aa78ecd5df4505b9611f7ad9b2db82': 'Vestibular Terapi (SI)',
+    'e6e7f1641a004046aa167237c2d09ef7': 'Hand Eye Coord 3',
+    'sub_e6e7f1641a004046aa167237c2d09ef7': 'Hand Eye Coord 3',
+    'ac725a3cb7754dd1a427fbfc91254a67': 'Motorik Kasar Lanjutan',
+    'sub_ac725a3cb7754dd1a427fbfc91254a67': 'Motorik Kasar Lanjutan',
+  };
+
   String resolveProgramName(String idOrName) {
     final clean = idOrName.trim();
     if (clean.isEmpty) return '';
 
+    final lowerClean = clean.toLowerCase();
+
+    // 0. Check legacy mapped programs
+    if (_legacyProgramMap.containsKey(lowerClean)) {
+      return _legacyProgramMap[lowerClean]!;
+    }
+    final strippedLower = lowerClean.startsWith('sub_') ? lowerClean.substring(4) : lowerClean;
+    if (_legacyProgramMap.containsKey(strippedLower)) {
+      return _legacyProgramMap[strippedLower]!;
+    }
+
     // 1. Direct match by id or programName (case-insensitive)
     final match = _programs.firstWhere(
-      (p) => p.id.toLowerCase() == clean.toLowerCase() || p.programName.toLowerCase() == clean.toLowerCase(),
+      (p) => p.id.toLowerCase() == lowerClean || p.programName.toLowerCase() == lowerClean,
       orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10),
     );
     if (match.programName.isNotEmpty) {
@@ -319,7 +349,7 @@ class LocalStore extends ChangeNotifier {
 
     // 2. Partial ID match
     final partialMatch = _programs.firstWhere(
-      (p) => p.id.toLowerCase().contains(clean.toLowerCase()) || clean.toLowerCase().contains(p.id.toLowerCase()),
+      (p) => p.id.toLowerCase().contains(strippedLower) || strippedLower.contains(p.id.toLowerCase().replaceAll('sub_', '')),
       orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10),
     );
     if (partialMatch.programName.isNotEmpty) {
@@ -328,20 +358,20 @@ class LocalStore extends ChangeNotifier {
 
     // 3. Match against InitialSeedData programs
     final seedMatch = InitialSeedData.programs.firstWhere(
-      (p) => p.id.toLowerCase() == clean.toLowerCase() || p.programName.toLowerCase() == clean.toLowerCase() || p.id.toLowerCase().contains(clean.toLowerCase()) || clean.toLowerCase().contains(p.id.toLowerCase()),
+      (p) => p.id.toLowerCase() == lowerClean || p.programName.toLowerCase() == lowerClean || p.id.toLowerCase().contains(strippedLower) || strippedLower.contains(p.id.toLowerCase().replaceAll('sub_', '')),
       orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10),
     );
     if (seedMatch.programName.isNotEmpty) {
       return seedMatch.programName;
     }
 
-    // 4. Fallback if clean starts with SUB_ or contains hex ID
+    // 4. Fallback if clean is a hex hash
+    if (RegExp(r'^[a-fA-F0-9]{16,36}$').hasMatch(strippedLower)) {
+      return 'Program Terapi (#${strippedLower.substring(0, 6).toUpperCase()})';
+    }
+
     if (clean.startsWith('SUB_') || clean.startsWith('sub_')) {
-      final subClean = clean.substring(4);
-      if (subClean.length <= 8 && RegExp(r'^[a-fA-F0-9]+$').hasMatch(subClean)) {
-        return 'Program Terapi ($subClean)';
-      }
-      return subClean;
+      return clean.substring(4);
     }
 
     return clean;

@@ -19,6 +19,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _categoryFilter = 'all';
   String _roomFilter = 'all';
+  String _programFilter = 'all';
   String _sortBy = 'date-desc'; // Default: Tanggal Terbaru
   DateTime? _dateFrom;
   DateTime? _dateTo;
@@ -116,7 +117,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     final rawPoints = n.pointsAchieved[progKey] ?? n.pointsAchieved[cleanProgName];
     List<int> currentSessionPoints = [];
     if (rawPoints != null && rawPoints is List) {
-      currentSessionPoints = (rawPoints as List).map((e) => (e as num).toInt()).toList();
+      for (var e in rawPoints) {
+        if (e is num) currentSessionPoints.add(e.toInt());
+      }
     }
 
     String currentStatus = n.status[progKey] ?? n.status[cleanProgName] ?? 'BS';
@@ -176,7 +179,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Pencapaian: ${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai',
+                        'Pencapaian Kumulatif: ${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai',
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
                       ),
                       InkWell(
@@ -359,7 +362,16 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             if (!rooms.contains(_roomFilter)) continue;
           }
 
-          // 3. Date Range Filter
+          // 3. Program Dropdown Filter
+          if (_programFilter != 'all') {
+            final hasProgram = n.programsSelected.any((p) {
+              final cleanP = store.resolveProgramName(p).toLowerCase();
+              return p.toLowerCase() == _programFilter.toLowerCase() || cleanP == _programFilter.toLowerCase();
+            });
+            if (!hasProgram) continue;
+          }
+
+          // 4. Date Range Filter
           if (_dateFrom != null || _dateTo != null) {
             try {
               final notulenDate = DateTime.parse(n.date);
@@ -370,7 +382,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             }
           }
 
-          // 4. Search Filter
+          // 5. Search Text Filter
           final searchLower = _searchController.text.trim().toLowerCase();
           if (searchLower.isNotEmpty) {
             final matchesChild = n.childName.toLowerCase().contains(searchLower);
@@ -405,6 +417,15 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             return dateA.compareTo(dateB);
           });
         }
+
+        // Get Available Programs for Dropdown Filter
+        final availablePrograms = store.programs
+            .where((p) => _roomFilter == 'all' || p.room.toLowerCase() == _roomFilter.toLowerCase())
+            .map((p) => p.programName.trim())
+            .where((p) => p.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.compareTo(b));
 
         return Scaffold(
           body: Padding(
@@ -467,7 +488,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     Expanded(
                       flex: 2,
                       child: DropdownButtonFormField<String>(
-                        initialValue: _roomFilter,
+                        value: _roomFilter,
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                           border: OutlineInputBorder(),
@@ -476,14 +497,47 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                           const DropdownMenuItem(value: 'all', child: Text('Semua Ruang', style: TextStyle(fontSize: 11))),
                           ...store.allRooms.map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 11)))),
                         ],
-                        onChanged: (val) => setState(() => _roomFilter = val!),
+                        onChanged: (val) {
+                          setState(() {
+                            _roomFilter = val!;
+                            _programFilter = 'all'; // reset program filter on room change
+                          });
+                        },
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
-                // 3. Date Range Filter Row
+                // 3. Specific Program Dropdown Filter (New Feature!)
+                DropdownButtonFormField<String>(
+                  value: availablePrograms.contains(_programFilter) ? _programFilter : 'all',
+                  decoration: InputDecoration(
+                    labelText: 'Filter Berdasarkan Program Terapi',
+                    labelStyle: const TextStyle(fontSize: 11),
+                    prefixIcon: const Icon(LucideIcons.bookOpen, size: 16, color: Color(0xFFF43F5E)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem(value: 'all', child: Text('🎯 Semua Program Terapi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+                    ...availablePrograms.map(
+                      (p) => DropdownMenuItem(
+                        value: p,
+                        child: Text(
+                          p,
+                          style: const TextStyle(fontSize: 11),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (val) => setState(() => _programFilter = val ?? 'all'),
+                ),
+                const SizedBox(height: 8),
+
+                // 4. Date Range Filter Row
                 Row(
                   children: [
                     Expanded(
@@ -551,12 +605,14 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         ),
                       ),
                     ),
-                    if (_dateFrom != null || _dateTo != null)
+                    if (_dateFrom != null || _dateTo != null || _programFilter != 'all')
                       IconButton(
                         icon: const Icon(LucideIcons.xCircle, color: Colors.grey, size: 20),
+                        tooltip: 'Reset Filter',
                         onPressed: () => setState(() {
                           _dateFrom = null;
                           _dateTo = null;
+                          _programFilter = 'all';
                         }),
                       ),
                   ],
@@ -595,7 +651,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Child Header Banner (Matching Web Screenshot 100%)
+                                    // Child Header Banner
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
@@ -774,7 +830,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Room Title Badges (Matching Web Palette 100%)
+                // Room Title Badges
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
@@ -826,11 +882,11 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     ),
                   ),
 
-                // Individual Program Items Cards with Direct Edit & Delete Actions
+                // Individual Program Items Cards with Cumulative Calculation (Option B)
                 ...n.programsSelected.map((progId) {
                   final cleanProgName = store.resolveProgramName(progId);
                   final progObj = store.programs.firstWhere(
-                    (p) => p.id == progId || p.programName == progId,
+                    (p) => p.id == progId || p.programName == progId || p.programName.toLowerCase() == cleanProgName.toLowerCase(),
                     orElse: () => ProgramModel(id: '', room: '', programName: cleanProgName, indicators: [], targetPoints: 10),
                   );
 
@@ -838,34 +894,27 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                       ? progObj.targetPoints
                       : (progObj.indicators.isNotEmpty ? progObj.indicators.length : 10);
 
-                  final statusVal = n.status[progId] ?? n.status[cleanProgName] ?? 'S';
-                  final isTuntas = statusVal == 'tuntas' || statusVal == 'S' || statusVal == 'K';
-
-                  final statusLabel = isTuntas
-                      ? 'Tuntas'
-                      : (statusVal == 'BS' ? 'Berlangsung' : (statusVal == 'TS' ? 'Tidak Selesai' : 'Berlangsung'));
-
-                  final statusColor = isTuntas ? Colors.green : Colors.orange;
-
-                  // Calculate Achieved Points
-                  final rawPoints = n.pointsAchieved[progId] ?? n.pointsAchieved[cleanProgName];
-                  List<int> achievedIndices = [];
-                  if (rawPoints != null && rawPoints is List) {
-                    achievedIndices = (rawPoints as List).map((e) => (e as num).toInt()).toList();
-                  }
-
-                  List<int> tercapaiNumbers = [];
-                  List<int> belumNumbers = [];
-
-                  for (int i = 1; i <= totalTarget; i++) {
-                    if (achievedIndices.contains(i)) {
-                      tercapaiNumbers.add(i);
-                    } else {
-                      belumNumbers.add(i);
+                  // 1. Calculate Cumulative Achieved Points (Option B)
+                  final rawThisSession = n.pointsAchieved[progId] ?? n.pointsAchieved[cleanProgName];
+                  final Set<int> allAchievedSet = {};
+                  if (rawThisSession != null && rawThisSession is List) {
+                    for (var e in rawThisSession) {
+                      if (e is num) allAchievedSet.add(e.toInt());
                     }
                   }
 
-                  final tercapaiStr = tercapaiNumbers.isNotEmpty ? tercapaiNumbers.join(', ') : '—';
+                  final pastAchievedMap = store.getChildPastAchievedPoints(n.childName, excludeNotulenId: n.id);
+                  final pastAchieved = pastAchievedMap[progId] ?? pastAchievedMap[cleanProgName] ?? <int>{};
+                  allAchievedSet.addAll(pastAchieved);
+
+                  final List<int> tercapaiNumbers = allAchievedSet.where((pt) => pt >= 1 && pt <= totalTarget).toList()..sort();
+                  final List<int> belumNumbers = List.generate(totalTarget, (i) => i + 1).where((pt) => !tercapaiNumbers.contains(pt)).toList();
+
+                  final isTuntas = tercapaiNumbers.length >= totalTarget;
+                  final statusLabel = isTuntas ? 'Tuntas' : 'Berlangsung';
+                  final statusColor = isTuntas ? Colors.green : Colors.orange;
+
+                  final tercapaiStr = tercapaiNumbers.isNotEmpty ? '${tercapaiNumbers.join(', ')} (${tercapaiNumbers.length}/$totalTarget)' : '—';
                   final belumStr = belumNumbers.isNotEmpty ? belumNumbers.join(', ') : '—';
 
                   return Container(
@@ -970,7 +1019,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                         ),
                         const SizedBox(height: 6),
 
-                        // Checkpoint Tercapai Line
+                        // Checkpoint Kumulatif Tercapai Line
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

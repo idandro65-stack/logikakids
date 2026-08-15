@@ -98,6 +98,12 @@ class DashboardScreen extends StatelessWidget {
                           return Card(
                             margin: const EdgeInsets.only(bottom: 6),
                             child: ListTile(
+                              onTap: () {
+                                final childNotulens = monthNotulens.where((n) => n.childName.toLowerCase() == cName.toLowerCase()).toList();
+                                if (childNotulens.isNotEmpty) {
+                                  _showNotulenDetailModal(context, childNotulens.first);
+                                }
+                              },
                               leading: const CircleAvatar(
                                 backgroundColor: Color(0xFFFFF1F2),
                                 child: Icon(LucideIcons.user, color: Color(0xFFF43F5E), size: 18),

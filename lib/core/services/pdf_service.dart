@@ -10,8 +10,9 @@ class PdfService {
   static Future<void> generateAndPrintRaport(
       BuildContext context, String childName) async {
     final notulens = LocalStore.instance.notulens
-        .where((n) => n.childName == childName)
-        .toList();
+        .where((n) => n.childName.toLowerCase() == childName.toLowerCase())
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
 
     if (notulens.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -113,10 +114,41 @@ class PdfService {
                     ],
                   ),
                   pw.SizedBox(height: 6),
-                  if (n.notes.isNotEmpty)
+
+                  // Programs List
+                  if (n.programsSelected.isNotEmpty)
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: n.programsSelected.map((progId) {
+                        final cleanProg = LocalStore.instance.resolveProgramName(progId);
+                        final statusVal = n.status[progId] ?? n.status[cleanProg] ?? 'S';
+                        final isTuntas = statusVal == 'tuntas' || statusVal == 'S' || statusVal == 'K';
+                        return pw.Padding(
+                          padding: const pw.EdgeInsets.only(bottom: 2),
+                          child: pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text('• $cleanProg', style: const pw.TextStyle(fontSize: 9)),
+                              pw.Text(
+                                isTuntas ? '[ Tuntas ]' : '[ Berlangsung ]',
+                                style: pw.TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: isTuntas ? PdfColors.green800 : PdfColors.orange800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+
+                  if (n.notes.isNotEmpty) ...[
+                    pw.SizedBox(height: 4),
                     pw.Text('Catatan Khusus: "${n.notes}"',
                         style: const pw.TextStyle(
-                            fontSize: 10, color: PdfColors.red900)),
+                            fontSize: 9, color: PdfColors.red900)),
+                  ],
                 ],
               ),
             );
@@ -158,8 +190,9 @@ class PdfService {
   static Future<void> shareToWhatsApp(
       BuildContext context, String childName) async {
     final notulens = LocalStore.instance.notulens
-        .where((n) => n.childName == childName)
-        .toList();
+        .where((n) => n.childName.toLowerCase() == childName.toLowerCase())
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
 
     if (notulens.isEmpty) return;
 
@@ -167,13 +200,22 @@ class PdfService {
     buffer.writeln('*RAPORT EVALUASI LOGIKA KIDS*');
     buffer.writeln('Nama Anak: *$childName*');
     buffer.writeln('Total Sesi: ${notulens.length} Sesi Terapi');
-    buffer.writeln('-------------------------------------');
+    buffer.writeln('=====================================');
 
-    for (var n in notulens.take(3)) {
-      buffer.writeln('Tanggal: *${n.date}* (${n.room})');
-      buffer.writeln('Bunda Terapis: ${n.notulen}');
-      if (n.notes.isNotEmpty) buffer.writeln('Catatan: "${n.notes}"');
-      buffer.writeln('');
+    for (var n in notulens.take(5)) {
+      buffer.writeln('📅 Tanggal: *${n.date}* (${n.room})');
+      buffer.writeln('👩‍🏫 Bunda Terapis: ${n.notulen}');
+      if (n.programsSelected.isNotEmpty) {
+        buffer.writeln('🎯 Program:');
+        for (var p in n.programsSelected) {
+          final cleanP = LocalStore.instance.resolveProgramName(p);
+          final statusVal = n.status[p] ?? n.status[cleanP] ?? 'S';
+          final isTuntas = statusVal == 'tuntas' || statusVal == 'S' || statusVal == 'K';
+          buffer.writeln('  - $cleanP : ${isTuntas ? '✓ Tuntas' : '⏳ Berlangsung'}');
+        }
+      }
+      if (n.notes.isNotEmpty) buffer.writeln('📝 Catatan: "${n.notes}"');
+      buffer.writeln('-------------------------------------');
     }
     buffer.writeln('_Logika Kids - Notulen Terapi Harian Anak_');
 
