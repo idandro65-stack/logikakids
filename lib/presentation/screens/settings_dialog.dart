@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../data/datasources/local_store.dart';
 import 'kotak_sampah_screen.dart';
 import 'login_screen.dart';
@@ -187,18 +186,6 @@ class SettingsDialog {
               ],
 
               const Divider(),
-              ListTile(
-                leading: const Icon(LucideIcons.refreshCw, color: Color(0xFFF43F5E)),
-                title: const Text('Cek Pembaruan & Unduh APK Terbaru', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Unduh rilis APK terbaru dari GitHub untuk di-update', style: TextStyle(fontSize: 10)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final uri = Uri.parse('https://github.com/idandro65-stack/logikakids/actions');
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-              ),
               ListTile(
                 leading: const Icon(LucideIcons.logOut, color: Colors.red),
                 title: const Text('Keluar / Logout Sesi Akun', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),

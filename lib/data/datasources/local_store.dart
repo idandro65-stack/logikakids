@@ -310,8 +310,10 @@ class LocalStore extends ChangeNotifier {
         for (var idx in indices) {
           if (idx is num) {
             final val = idx.toInt();
-            map[progKey]!.add(val);
-            map[cleanKey]!.add(val);
+            if (val >= 1) {
+              map[progKey]!.add(val);
+              map[cleanKey]!.add(val);
+            }
           }
         }
       });

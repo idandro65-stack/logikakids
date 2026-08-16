@@ -117,7 +117,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     final rawPoints = n.pointsAchieved[progKey] ?? n.pointsAchieved[cleanProgName];
     List<int> currentSessionPoints = [];
     if (rawPoints != null) {
-      currentSessionPoints = List<int>.from(rawPoints);
+      currentSessionPoints = List<int>.from(rawPoints).where((pt) => pt >= 1).toList();
     }
 
     String currentStatus = n.status[progKey] ?? n.status[cleanProgName] ?? 'BS';
@@ -177,7 +177,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Pencapaian Kumulatif: ${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai',
+                        'Pencapaian Kumulatif: ${currentSessionPoints.where((pt) => pt >= 1 && pt <= targetPoints).toSet().union(pastAchieved.where((pt) => pt >= 1 && pt <= targetPoints).toSet()).length} / $targetPoints tercapai',
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
                       ),
                       InkWell(

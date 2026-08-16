@@ -62,7 +62,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
         // Points
         final pts = n.pointsAchieved[p] ?? n.pointsAchieved[cleanName];
         if (pts != null && pts is List) {
-          final intPts = pts.map((e) => (e as num).toInt()).toList();
+          final intPts = pts.map((e) => (e as num).toInt()).where((pt) => pt >= 1).toList();
           _pointsMap[cleanName] = intPts;
           _pointsMap[p] = intPts;
         }
@@ -77,7 +77,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       n.pointsAchieved.forEach((k, v) {
         if (v is List) {
           final cleanKey = store.resolveProgramName(k);
-          final intList = v.map((e) => (e as num).toInt()).toList();
+          final intList = v.map((e) => (e as num).toInt()).where((pt) => pt >= 1).toList();
           _pointsMap[cleanKey] = intList;
           _pointsMap[k] = intList;
         }
@@ -559,7 +559,10 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Checkpoints Indikator:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                  Text('${currentSessionPoints.length + pastAchieved.length} / $targetPoints tercapai', style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                  Text(
+                    '${currentSessionPoints.where((pt) => pt >= 1 && pt <= targetPoints).toSet().union(pastAchieved.where((pt) => pt >= 1 && pt <= targetPoints).toSet()).length} / $targetPoints tercapai',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
               InkWell(
