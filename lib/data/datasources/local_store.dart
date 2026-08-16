@@ -9,6 +9,7 @@ import '../models/program_model.dart';
 import '../models/bunda_model.dart';
 import '../models/user_model.dart';
 import '../models/log_model.dart';
+import '../models/trash_item_model.dart';
 import '../initial_seed_data.dart';
 import 'supabase_service.dart';
 
@@ -61,6 +62,8 @@ class LocalStore extends ChangeNotifier {
   List<LogModel> _logs = [];
   List<String> _customRooms = [];
   List<PendingSyncItem> _pendingSyncQueue = [];
+  List<TrashItemModel> _trashItems = [];
+  int _trashRetentionDays = 30;
 
   List<ChildModel> get children => List.unmodifiable(_children);
   List<NotulenModel> get notulens => List.unmodifiable(_notulens);
@@ -70,6 +73,8 @@ class LocalStore extends ChangeNotifier {
   List<LogModel> get logs => List.unmodifiable(_logs);
   List<PendingSyncItem> get pendingSyncQueue => List.unmodifiable(_pendingSyncQueue);
   int get pendingSyncCount => _pendingSyncQueue.length;
+  List<TrashItemModel> get trashItems => List.unmodifiable(_trashItems);
+  int get trashRetentionDays => _trashRetentionDays;
 
   List<String> get allRooms {
     final set = <String>{...AppConfig.rooms, ..._customRooms};
@@ -136,10 +141,23 @@ class LocalStore extends ChangeNotifier {
         _pendingSyncQueue = list.map((e) => PendingSyncItem.fromJson(e)).toList();
       }
 
+      final rawTrash = _box!.get('trash_items');
+      if (rawTrash != null) {
+        final List list = jsonDecode(rawTrash);
+        _trashItems = list.map((e) => TrashItemModel.fromJson(e)).toList();
+      }
+
+      final rawRetention = _box!.get('trash_retention_days');
+      if (rawRetention != null) {
+        _trashRetentionDays = int.tryParse(rawRetention.toString()) ?? 30;
+      }
+
       final rawAuth = _box!.get('auth_session');
       if (rawAuth != null) {
         currentUser = UserModel.fromJson(jsonDecode(rawAuth));
       }
+
+      _purgeExpiredTrash();
     } catch (e) {
       debugPrint('Error loading local cache: $e');
     }
@@ -156,6 +174,8 @@ class LocalStore extends ChangeNotifier {
       _box!.put('logs', jsonEncode(_logs.map((e) => e.toJson()).toList()));
       _box!.put('custom_rooms', jsonEncode(_customRooms));
       _box!.put('pending_sync_queue', jsonEncode(_pendingSyncQueue.map((e) => e.toJson()).toList()));
+      _box!.put('trash_items', jsonEncode(_trashItems.map((e) => e.toJson()).toList()));
+      _box!.put('trash_retention_days', _trashRetentionDays);
 
       if (currentUser != null) {
         _box!.put('auth_session', jsonEncode(currentUser!.toJson()));
@@ -227,9 +247,22 @@ class LocalStore extends ChangeNotifier {
   }
 
   void deleteRoom(String roomName) {
-    _customRooms.removeWhere((r) => r.toLowerCase() == roomName.toLowerCase());
-    addLog('DELETE_ROOM', 'Menghapus ruang terapi: \'$roomName\'');
-    _persist();
+    final clean = roomName.trim();
+    if (_customRooms.any((r) => r.toLowerCase() == clean.toLowerCase())) {
+      _customRooms.removeWhere((r) => r.toLowerCase() == clean.toLowerCase());
+      final trashItem = TrashItemModel(
+        id: 'trash_${DateTime.now().millisecondsSinceEpoch}',
+        itemType: 'ruang',
+        title: 'Ruang Terapi: $clean',
+        subtitle: 'Ruang Terapi Khusus',
+        deletedAt: DateTime.now().toIso8601String(),
+        deletedBy: currentUser?.name ?? 'Admin',
+        rawData: {'name': clean},
+      );
+      _trashItems.insert(0, trashItem);
+      addLog('TRASH_ROOM', 'Memindahkan ruang terapi \'$clean\' ke Kotak Sampah');
+      _persist();
+    }
   }
 
   // --- COMPLETED PROGRAM HELPERS ---
@@ -434,13 +467,23 @@ class LocalStore extends ChangeNotifier {
 
   void deleteChild(String id) {
     final target = _children.firstWhere((c) => c.id == id, orElse: () => ChildModel(id: '', name: '', category: ''));
-    _children.removeWhere((c) => c.id == id);
     if (target.id.isNotEmpty) {
-      addLog('DELETE_CHILD', 'Menghapus data anak: \'${target.name}\'');
+      _children.removeWhere((c) => c.id == id);
+      final trashItem = TrashItemModel(
+        id: 'trash_${DateTime.now().millisecondsSinceEpoch}',
+        itemType: 'anak',
+        title: 'Data Anak: ${target.name}',
+        subtitle: 'Kategori: ${target.category.toUpperCase()}',
+        deletedAt: DateTime.now().toIso8601String(),
+        deletedBy: currentUser?.name ?? 'Admin',
+        rawData: target.toJson(),
+      );
+      _trashItems.insert(0, trashItem);
+      addLog('TRASH_CHILD', 'Memindahkan data anak \'${target.name}\' (${target.category.toUpperCase()}) ke Kotak Sampah');
+      enqueueSync('children', 'DELETE', {'id': id});
+      _persist();
+      SupabaseService.instance.deleteFromCloud('children', id);
     }
-    enqueueSync('children', 'DELETE', {'id': id});
-    _persist();
-    SupabaseService.instance.deleteFromCloud('children', id);
   }
 
   // --- STAFF/USER CRUD ---
@@ -475,13 +518,23 @@ class LocalStore extends ChangeNotifier {
 
   void deleteUser(String username) {
     final target = _users.firstWhere((u) => u.username == username, orElse: () => UserModel(username: '', password: '', name: '', role: ''));
-    _users.removeWhere((u) => u.username == username);
     if (target.username.isNotEmpty) {
-      addLog('DELETE_USER', 'Menghapus akun pengguna: ${target.name} (${target.username})');
+      _users.removeWhere((u) => u.username == username);
+      final trashItem = TrashItemModel(
+        id: 'trash_${DateTime.now().millisecondsSinceEpoch}',
+        itemType: 'staf',
+        title: 'Akun Staf: ${target.name} (${target.username})',
+        subtitle: 'Peran: ${target.role.toUpperCase()}',
+        deletedAt: DateTime.now().toIso8601String(),
+        deletedBy: currentUser?.name ?? 'Admin',
+        rawData: target.toJson(),
+      );
+      _trashItems.insert(0, trashItem);
+      addLog('TRASH_USER', 'Memindahkan akun pengguna \'${target.name}\' (${target.username}) ke Kotak Sampah');
+      enqueueSync('users', 'DELETE', {'username': username});
+      _persist();
+      SupabaseService.instance.deleteFromCloud('users', username);
     }
-    enqueueSync('users', 'DELETE', {'username': username});
-    _persist();
-    SupabaseService.instance.deleteFromCloud('users', username);
   }
 
   // --- PROGRAM CRUD ---
@@ -506,13 +559,23 @@ class LocalStore extends ChangeNotifier {
 
   void deleteProgram(String id) {
     final target = _programs.firstWhere((p) => p.id == id, orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 10));
-    _programs.removeWhere((p) => p.id == id);
     if (target.id.isNotEmpty) {
-      addLog('DELETE_PROGRAM', 'Menghapus program terapi: ${target.programName}');
+      _programs.removeWhere((p) => p.id == id);
+      final trashItem = TrashItemModel(
+        id: 'trash_${DateTime.now().millisecondsSinceEpoch}',
+        itemType: 'program',
+        title: 'Program: ${target.programName}',
+        subtitle: '${target.room} | ${target.indicators.length} Indikator',
+        deletedAt: DateTime.now().toIso8601String(),
+        deletedBy: currentUser?.name ?? 'Admin',
+        rawData: target.toJson(),
+      );
+      _trashItems.insert(0, trashItem);
+      addLog('TRASH_PROGRAM', 'Memindahkan program terapi \'${target.programName}\' ke Kotak Sampah');
+      enqueueSync('programs', 'DELETE', {'id': id});
+      _persist();
+      SupabaseService.instance.deleteFromCloud('programs', id);
     }
-    enqueueSync('programs', 'DELETE', {'id': id});
-    _persist();
-    SupabaseService.instance.deleteFromCloud('programs', id);
   }
 
   // --- NOTULEN CRUD & EDIT ---
@@ -537,13 +600,116 @@ class LocalStore extends ChangeNotifier {
 
   void deleteNotulen(String id) {
     final target = _notulens.firstWhere((n) => n.id == id, orElse: () => NotulenModel(id: '', date: '', childName: '', notulen: '', room: '', programsSelected: [], pointsAchieved: {}, status: {}, notes: ''));
-    _notulens.removeWhere((n) => n.id == id);
     if (target.id.isNotEmpty) {
-      addLog('DELETE_NOTULEN', 'Menghapus notulen sesi ${target.childName} (${target.date})');
+      _notulens.removeWhere((n) => n.id == id);
+      final trashItem = TrashItemModel(
+        id: 'trash_${DateTime.now().millisecondsSinceEpoch}',
+        itemType: 'notulen',
+        title: 'Sesi ${target.childName} (${target.date})',
+        subtitle: '${target.room} | Bunda: ${target.notulen} | ${target.programsSelected.length} Program',
+        deletedAt: DateTime.now().toIso8601String(),
+        deletedBy: currentUser?.name ?? 'Admin',
+        rawData: target.toJson(),
+      );
+      _trashItems.insert(0, trashItem);
+      addLog('TRASH_NOTULEN', 'Memindahkan notulen sesi ${target.childName} (${target.date}) ke Kotak Sampah');
+      enqueueSync('notulens', 'DELETE', {'id': id});
+      _persist();
+      SupabaseService.instance.deleteFromCloud('notulens', id);
     }
-    enqueueSync('notulens', 'DELETE', {'id': id});
+  }
+
+  // --- TRASH & RECYCLE BIN MANAGEMENT ---
+  void setTrashRetentionDays(int days) {
+    _trashRetentionDays = days;
+    _purgeExpiredTrash();
     _persist();
-    SupabaseService.instance.deleteFromCloud('notulens', id);
+    addLog('UPDATE_SETTING', 'Mengubah masa simpan sampah menjadi ${days == -1 ? "Selamanya" : "$days Hari"}');
+  }
+
+  void _purgeExpiredTrash() {
+    if (_trashRetentionDays <= 0) return; // -1 means forever
+    final now = DateTime.now();
+    final initialCount = _trashItems.length;
+    _trashItems.removeWhere((item) {
+      try {
+        final delDate = DateTime.parse(item.deletedAt);
+        final diffDays = now.difference(delDate).inDays;
+        return diffDays >= _trashRetentionDays;
+      } catch (_) {
+        return false;
+      }
+    });
+    if (_trashItems.length < initialCount) {
+      final purged = initialCount - _trashItems.length;
+      addLog('AUTO_PURGE_TRASH', 'Membersihkan otomatis $purged item sampah yang telah kadaluarsa (> $_trashRetentionDays hari)');
+    }
+  }
+
+  bool restoreTrashItem(String trashId) {
+    final idx = _trashItems.indexWhere((t) => t.id == trashId);
+    if (idx == -1) return false;
+    final item = _trashItems.removeAt(idx);
+
+    switch (item.itemType) {
+      case 'notulen':
+        final notulen = NotulenModel.fromJson(item.rawData);
+        _notulens.removeWhere((n) => n.id == notulen.id);
+        _notulens.insert(0, notulen);
+        enqueueSync('notulens', 'UPSERT', notulen.toJson());
+        SupabaseService.instance.syncToCloud('notulens', notulen.toJson());
+        addLog('RESTORE_DATA', 'Memulihkan notulen sesi ${notulen.childName} (${notulen.date}) dari Kotak Sampah');
+        break;
+      case 'anak':
+        final child = ChildModel.fromJson(item.rawData);
+        _children.removeWhere((c) => c.id == child.id);
+        _children.insert(0, child);
+        enqueueSync('children', 'UPSERT', child.toJson());
+        SupabaseService.instance.syncToCloud('children', child.toJson());
+        addLog('RESTORE_DATA', 'Memulihkan data anak \'${child.name}\' (${child.category.toUpperCase()}) dari Kotak Sampah');
+        break;
+      case 'program':
+        final prog = ProgramModel.fromJson(item.rawData);
+        _programs.removeWhere((p) => p.id == prog.id);
+        _programs.insert(0, prog);
+        enqueueSync('programs', 'UPSERT', prog.toJson());
+        SupabaseService.instance.syncToCloud('programs', prog.toJson());
+        addLog('RESTORE_DATA', 'Memulihkan program terapi \'${prog.programName}\' dari Kotak Sampah');
+        break;
+      case 'staf':
+        final user = UserModel.fromJson(item.rawData);
+        _users.removeWhere((u) => u.username == user.username);
+        _users.insert(0, user);
+        enqueueSync('users', 'UPSERT', user.toJson());
+        SupabaseService.instance.syncToCloud('users', user.toJson());
+        addLog('RESTORE_DATA', 'Memulihkan akun staf \'${user.name}\' (${user.username}) dari Kotak Sampah');
+        break;
+      case 'ruang':
+        final rName = item.rawData['name']?.toString() ?? '';
+        if (rName.isNotEmpty && !_customRooms.contains(rName)) {
+          _customRooms.add(rName);
+        }
+        addLog('RESTORE_DATA', 'Memulihkan ruang terapi \'$rName\' dari Kotak Sampah');
+        break;
+    }
+    _persist();
+    return true;
+  }
+
+  bool deleteTrashItemPermanently(String trashId) {
+    final idx = _trashItems.indexWhere((t) => t.id == trashId);
+    if (idx == -1) return false;
+    final item = _trashItems.removeAt(idx);
+    addLog('PERMANENT_DELETE', 'Menghapus permanen ${item.title} dari Kotak Sampah');
+    _persist();
+    return true;
+  }
+
+  void emptyTrash() {
+    final count = _trashItems.length;
+    _trashItems.clear();
+    addLog('EMPTY_TRASH', 'Mengosongkan Kotak Sampah ($count data dimusnahkan secara permanen)');
+    _persist();
   }
 
   void deleteProgramFromNotulen(String notulenId, String progKey) {

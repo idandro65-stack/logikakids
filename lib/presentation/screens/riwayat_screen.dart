@@ -55,7 +55,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       LocalStore.instance.deleteNotulen(n.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Notulen sesi ${n.childName} berhasil dihapus')),
+          SnackBar(content: Text('Notulen sesi ${n.childName} berhasil dipindahkan ke Kotak Sampah')),
         );
       }
     }

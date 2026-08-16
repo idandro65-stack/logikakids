@@ -42,7 +42,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
       LocalStore.instance.deleteProgram(prog.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Program terapi \'${prog.programName}\' berhasil dihapus')),
+          SnackBar(content: Text('Program terapi \'${prog.programName}\' berhasil dipindahkan ke Kotak Sampah')),
         );
       }
     }
@@ -79,7 +79,7 @@ class _ProgramScreenState extends State<ProgramScreen> {
       LocalStore.instance.deleteRoom(roomName);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ruang terapi \'$roomName\' telah dihapus')),
+          SnackBar(content: Text('Ruang terapi \'$roomName\' berhasil dipindahkan ke Kotak Sampah')),
         );
       }
     }

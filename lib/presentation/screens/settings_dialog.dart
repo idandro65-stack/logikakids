@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../data/datasources/local_store.dart';
+import 'kotak_sampah_screen.dart';
 import 'login_screen.dart';
 
 class SettingsDialog {
@@ -120,6 +121,51 @@ class SettingsDialog {
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
                 ),
                 const SizedBox(height: 6),
+                ListTile(
+                  leading: const Icon(LucideIcons.trash2, color: Color(0xFFF43F5E)),
+                  title: Row(
+                    children: [
+                      const Text('Kotak Sampah & Pemulihan', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      if (store.trashItems.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF43F5E),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${store.trashItems.length}',
+                            style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                    ],
+                  ),
+                  subtitle: const Text('Pulihkan data yang terhapus per item atau hapus permanen', style: TextStyle(fontSize: 10)),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16, color: Colors.grey),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const KotakSampahScreen()),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(LucideIcons.clock, color: Color(0xFF7C3AED)),
+                  title: const Text('Masa Simpan Sampah Otomatis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                    store.trashRetentionDays == -1
+                        ? 'Status: Selamanya (Tidak dihapus otomatis)'
+                        : 'Status: Dihapus otomatis setelah ${store.trashRetentionDays} hari',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16, color: Colors.grey),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showTrashRetentionModal(context, store);
+                  },
+                ),
                 ListTile(
                   leading: const Icon(LucideIcons.scrollText, color: Color(0xFFF43F5E)),
                   title: const Text('Log Aktivitas Klinik (Audit Trail)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
@@ -385,6 +431,77 @@ class SettingsDialog {
                         },
                       ),
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static void _showTrashRetentionModal(BuildContext context, LocalStore store) {
+    final options = [
+      {'label': '7 Hari', 'value': 7},
+      {'label': '14 Hari', 'value': 14},
+      {'label': '30 Hari (Rekomendasi Standar)', 'value': 30},
+      {'label': '60 Hari', 'value': 60},
+      {'label': '90 Hari', 'value': 90},
+      {'label': 'Selamanya (Simpan Sampah Permanen)', 'value': -1},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(LucideIcons.clock, color: Color(0xFF7C3AED)),
+                  SizedBox(width: 8),
+                  Text(
+                    'Atur Masa Simpan Sampah',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Data yang berada di kotak sampah lebih lama dari batas waktu yang dipilih akan dibersihkan secara otomatis oleh sistem.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 14),
+              ...options.map((opt) {
+                final isSelected = store.trashRetentionDays == opt['value'];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    opt['label'] as String,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? const Color(0xFF7C3AED) : Colors.black87,
+                    ),
+                  ),
+                  leading: Icon(
+                    isSelected ? LucideIcons.checkCircle2 : LucideIcons.circle,
+                    color: isSelected ? const Color(0xFF7C3AED) : Colors.grey,
+                    size: 18,
+                  ),
+                  onTap: () {
+                    store.setTrashRetentionDays(opt['value'] as int);
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Masa simpan sampah disetel ke: ${opt['label']}')),
+                    );
+                  },
+                );
+              }),
             ],
           ),
         );

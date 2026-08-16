@@ -46,7 +46,7 @@ class _AnakScreenState extends State<AnakScreen> {
       LocalStore.instance.deleteChild(child.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Data anak \'${child.name}\' berhasil dihapus')),
+          SnackBar(content: Text('Data anak \'${child.name}\' berhasil dipindahkan ke Kotak Sampah')),
         );
       }
     }

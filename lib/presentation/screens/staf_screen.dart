@@ -42,7 +42,7 @@ class _StafScreenState extends State<StafScreen> {
       LocalStore.instance.deleteUser(user.username);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Akun staf \'${user.name}\' berhasil dihapus')),
+          SnackBar(content: Text('Akun staf \'${user.name}\' berhasil dipindahkan ke Kotak Sampah')),
         );
       }
     }
