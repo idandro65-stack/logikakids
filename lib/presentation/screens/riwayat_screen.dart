@@ -376,15 +376,14 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             if (!hasProgram) continue;
           }
 
-          // 4. Date Range Filter
-          if (_dateFrom != null || _dateTo != null) {
-            try {
-              final notulenDate = DateTime.parse(n.date);
-              if (_dateFrom != null && notulenDate.isBefore(_dateFrom!)) continue;
-              if (_dateTo != null && notulenDate.isAfter(_dateTo!.add(const Duration(days: 1)))) continue;
-            } catch (_) {
-              // Skip if date format is invalid
-            }
+          // 4. Date Range Filter (Exact string comparison on YYYY-MM-DD)
+          if (_dateFrom != null) {
+            final fromStr = DateFormat('yyyy-MM-dd').format(_dateFrom!);
+            if (n.date.compareTo(fromStr) < 0) continue;
+          }
+          if (_dateTo != null) {
+            final toStr = DateFormat('yyyy-MM-dd').format(_dateTo!);
+            if (n.date.compareTo(toStr) > 0) continue;
           }
 
           // 5. Search Text Filter
@@ -842,48 +841,73 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(LucideIcons.calendar, size: 14, color: roomColor),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${n.date}  |  Bunda: ${n.notulen}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.calendar, size: 14, color: roomColor),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${n.date}  |  Bunda: ${n.notulen}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
+                    // Sleek Edit Full Button
+                    InkWell(
+                      onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => InputNotulenScreen(editNotulen: n),
                           ),
                         );
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.blue.shade300),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.edit2, size: 11, color: Colors.blue),
+                            SizedBox(width: 3),
+                            Text('Edit', style: TextStyle(fontSize: 10, color: Colors.blue, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
                       ),
-                      icon: const Icon(LucideIcons.edit2, size: 10),
-                      label: const Text('Edit Full', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 4),
-                    ElevatedButton.icon(
-                      onPressed: () => _confirmDeleteNotulen(n),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    // Sleek Hapus Sesi Button
+                    InkWell(
+                      onTap: () => _confirmDeleteNotulen(n),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.red.shade300),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.trash2, size: 11, color: Colors.red),
+                            SizedBox(width: 3),
+                            Text('Hapus', style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
                       ),
-                      icon: const Icon(LucideIcons.trash2, size: 10),
-                      label: const Text('Hapus Sesi', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
