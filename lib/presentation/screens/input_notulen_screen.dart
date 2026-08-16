@@ -39,14 +39,50 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
       _selectedChild = n.childName;
       _selectedBunda = n.notulen;
       _selectedRooms = n.room.split(';').map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
-      _selectedPrograms.addAll(n.programsSelected);
-      _statusMap.addAll(n.status);
+
+      for (var p in n.programsSelected) {
+        final cleanName = store.resolveProgramName(p);
+        _selectedPrograms.add(cleanName);
+        _selectedPrograms.add(p);
+
+        // Ensure room of selected program is added to _selectedRooms so card shows up
+        final matchingProg = store.programs.firstWhere(
+          (pr) => pr.id.toLowerCase() == p.toLowerCase() || pr.programName.toLowerCase() == cleanName.toLowerCase(),
+          orElse: () => ProgramModel(id: '', room: '', programName: '', indicators: [], targetPoints: 0),
+        );
+        if (matchingProg.room.isNotEmpty) {
+          _selectedRooms.add(matchingProg.room);
+        }
+
+        // Status
+        final statusVal = n.status[p] ?? n.status[cleanName] ?? 'S';
+        _statusMap[cleanName] = statusVal;
+        _statusMap[p] = statusVal;
+
+        // Points
+        final pts = n.pointsAchieved[p] ?? n.pointsAchieved[cleanName];
+        if (pts != null && pts is List) {
+          final intPts = pts.map((e) => (e as num).toInt()).toList();
+          _pointsMap[cleanName] = intPts;
+          _pointsMap[p] = intPts;
+        }
+      }
+
+      n.status.forEach((k, v) {
+        final cleanKey = store.resolveProgramName(k);
+        _statusMap[cleanKey] = v;
+        _statusMap[k] = v;
+      });
 
       n.pointsAchieved.forEach((k, v) {
         if (v is List) {
-          _pointsMap[k] = v.map((e) => (e as num).toInt()).toList();
+          final cleanKey = store.resolveProgramName(k);
+          final intList = v.map((e) => (e as num).toInt()).toList();
+          _pointsMap[cleanKey] = intList;
+          _pointsMap[k] = intList;
         }
       });
+
       _notesController.text = n.notes;
     } else {
       _dateController = TextEditingController(
@@ -63,6 +99,40 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
         _selectedRooms = {store.allRooms[0]};
       }
     }
+  }
+
+  bool _isProgramSelected(ProgramModel prog, LocalStore store) {
+    final cleanName = prog.programName.toLowerCase();
+    final pId = prog.id.toLowerCase();
+    return _selectedPrograms.any((p) {
+      final pLower = p.toLowerCase();
+      final resolved = store.resolveProgramName(p).toLowerCase();
+      return pLower == cleanName || pLower == pId || resolved == cleanName;
+    });
+  }
+
+  void _toggleProgram(ProgramModel prog, bool isSelected, LocalStore store) {
+    final progName = prog.programName;
+    final progId = prog.id;
+    setState(() {
+      if (isSelected) {
+        if (!_selectedPrograms.contains(progName)) {
+          _selectedPrograms.add(progName);
+        }
+        if (!_statusMap.containsKey(progName)) {
+          _statusMap[progName] = 'S';
+        }
+      } else {
+        _selectedPrograms.removeWhere((p) =>
+            p.toLowerCase() == progName.toLowerCase() ||
+            p.toLowerCase() == progId.toLowerCase() ||
+            store.resolveProgramName(p).toLowerCase() == progName.toLowerCase());
+        _pointsMap.remove(progName);
+        _pointsMap.remove(progId);
+        _statusMap.remove(progName);
+        _statusMap.remove(progId);
+      }
+    });
   }
 
   Future<void> _confirmDeleteRoom(String roomName) async {
@@ -126,13 +196,15 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
     final store = LocalStore.instance;
     final isEdit = widget.editNotulen != null;
 
+    final resolvedPrograms = _selectedPrograms.map((p) => store.resolveProgramName(p)).toSet().toList();
+
     final notulenObj = NotulenModel(
       id: isEdit ? widget.editNotulen!.id : 'SUB_notulen_${DateTime.now().millisecondsSinceEpoch}',
       date: _dateController.text,
       childName: _selectedChild!,
       notulen: _selectedBunda!,
       room: _selectedRooms.join('; '),
-      programsSelected: _selectedPrograms,
+      programsSelected: resolvedPrograms,
       pointsAchieved: _pointsMap,
       status: _statusMap,
       notes: _notesController.text.trim(),
@@ -332,7 +404,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
             else
               ...availablePrograms.map((prog) {
                 final isCompleted = completedSet.contains(prog.id) || completedSet.contains(prog.programName);
-                final isChecked = _selectedPrograms.contains(prog.programName);
+                final isChecked = _isProgramSelected(prog, store);
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -374,16 +446,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                         activeColor: const Color(0xFFF43F5E),
                         onChanged: isCompleted
                             ? null
-                            : (val) {
-                                setState(() {
-                                  if (val == true) {
-                                    _selectedPrograms.add(prog.programName);
-                                    _statusMap[prog.programName] = 'S';
-                                  } else {
-                                    _selectedPrograms.remove(prog.programName);
-                                  }
-                                });
-                              },
+                            : (val) => _toggleProgram(prog, val == true, store),
                       ),
 
                       // Checkpoint Indicators List if Program Selected
@@ -470,9 +533,13 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
   }
 
   Widget _buildIndicatorChecklist(ProgramModel prog, Map<String, Set<int>> pastAchievedMap) {
+    final store = LocalStore.instance;
     final progKey = prog.programName;
-    final pastAchieved = pastAchievedMap[prog.id] ?? pastAchievedMap[progKey] ?? <int>{};
-    final currentSessionPoints = _pointsMap[progKey] ?? <int>[];
+    final progId = prog.id;
+    final cleanKey = store.resolveProgramName(progKey);
+
+    final pastAchieved = pastAchievedMap[progId] ?? pastAchievedMap[progKey] ?? pastAchievedMap[cleanKey] ?? <int>{};
+    final currentSessionPoints = _pointsMap[progKey] ?? _pointsMap[progId] ?? _pointsMap[cleanKey] ?? <int>[];
 
     final targetPoints = prog.targetPoints > 0 ? prog.targetPoints : 10;
     final indicatorsList = prog.indicators;
@@ -499,7 +566,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                 onTap: () {
                   setState(() {
                     if (!_pointsMap.containsKey(progKey)) {
-                      _pointsMap[progKey] = [];
+                      _pointsMap[progKey] = List<int>.from(currentSessionPoints);
                     }
                     if (!isAllUnlockedChecked) {
                       for (var idx in allUnlockedIndices) {
@@ -512,6 +579,10 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                       _pointsMap[progKey]!.clear();
                       _statusMap[progKey] = 'BS';
                     }
+                    _pointsMap[progId] = _pointsMap[progKey]!;
+                    _pointsMap[cleanKey] = _pointsMap[progKey]!;
+                    _statusMap[progId] = _statusMap[progKey]!;
+                    _statusMap[cleanKey] = _statusMap[progKey]!;
                   });
                 },
                 child: Container(
@@ -534,7 +605,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                           onChanged: (val) {
                             setState(() {
                               if (!_pointsMap.containsKey(progKey)) {
-                                _pointsMap[progKey] = [];
+                                _pointsMap[progKey] = List<int>.from(currentSessionPoints);
                               }
                               if (val == true) {
                                 for (var idx in allUnlockedIndices) {
@@ -547,6 +618,10 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                                 _pointsMap[progKey]!.clear();
                                 _statusMap[progKey] = 'BS';
                               }
+                              _pointsMap[progId] = _pointsMap[progKey]!;
+                              _pointsMap[cleanKey] = _pointsMap[progKey]!;
+                              _statusMap[progId] = _statusMap[progKey]!;
+                              _statusMap[cleanKey] = _statusMap[progKey]!;
                             });
                           },
                         ),
@@ -617,7 +692,7 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
               onChanged: (val) {
                 setState(() {
                   if (!_pointsMap.containsKey(progKey)) {
-                    _pointsMap[progKey] = [];
+                    _pointsMap[progKey] = List<int>.from(currentSessionPoints);
                   }
                   if (val == true) {
                     if (!_pointsMap[progKey]!.contains(pointNum)) {
@@ -626,9 +701,14 @@ class _InputNotulenScreenState extends State<InputNotulenScreen> {
                   } else {
                     _pointsMap[progKey]!.remove(pointNum);
                   }
+                  _pointsMap[progId] = _pointsMap[progKey]!;
+                  _pointsMap[cleanKey] = _pointsMap[progKey]!;
 
                   final totalNow = _pointsMap[progKey]!.length + pastAchieved.length;
-                  _statusMap[progKey] = (totalNow >= targetPoints) ? 'S' : 'BS';
+                  final newStatus = (totalNow >= targetPoints) ? 'S' : 'BS';
+                  _statusMap[progKey] = newStatus;
+                  _statusMap[progId] = newStatus;
+                  _statusMap[cleanKey] = newStatus;
                 });
               },
             );

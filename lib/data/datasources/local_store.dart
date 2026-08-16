@@ -209,6 +209,12 @@ class LocalStore extends ChangeNotifier {
     }
     if (_users.isEmpty) {
       _users = List.from(InitialSeedData.users);
+    } else {
+      for (var seedU in InitialSeedData.users) {
+        if (!_users.any((u) => u.username.toLowerCase() == seedU.username.toLowerCase())) {
+          _users.add(seedU);
+        }
+      }
     }
     _persist();
   }
@@ -314,16 +320,23 @@ class LocalStore extends ChangeNotifier {
   }
 
   // --- AUTHENTICATION ---
-  bool login(String username, String password) {
-    final cleanUser = username.trim().toLowerCase().replaceAll('bunda.', '').replaceAll(' ', '');
-    final cleanPw = password.trim();
+  bool login(String inputUsername, String inputPassword) {
+    final rawInput = inputUsername.trim().toLowerCase();
+    final cleanInput = rawInput.replaceAll('bunda.', '').replaceAll('bunda ', '').replaceAll('bunda', '').replaceAll(' ', '');
+    final cleanPw = inputPassword.trim();
 
     final user = _users.firstWhere(
-      (u) =>
-          u.username.trim().toLowerCase() == cleanUser &&
-          u.password.trim() == cleanPw,
-      orElse: () =>
-          UserModel(username: '', password: '', name: '', role: 'staf'),
+      (u) {
+        final uName = u.username.trim().toLowerCase();
+        final cleanUName = uName.replaceAll('bunda.', '').replaceAll('bunda ', '').replaceAll('bunda', '').replaceAll(' ', '');
+        final displayName = u.name.trim().toLowerCase().replaceAll('bunda ', '').replaceAll(' ', '');
+
+        final isUsernameMatch = (uName == rawInput) || (cleanUName == cleanInput) || (displayName == cleanInput);
+        final isPasswordMatch = (u.password.trim() == cleanPw);
+
+        return isUsernameMatch && isPasswordMatch;
+      },
+      orElse: () => UserModel(username: '', password: '', name: '', role: 'staf'),
     );
 
     if (user.username.isNotEmpty) {
